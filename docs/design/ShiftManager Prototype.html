@@ -1,0 +1,525 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>ShiftManager Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout concept: a plain, dense work-app shell (blue header, white cards on a grey ground) mirroring the SRS wireframes, so reviewers can compare screen by screen. */
+:root{
+  --bg:#f3f4f6; --surface:#ffffff; --surface2:#e5e7eb; --border:#9ca3af; --input-border:#4b5563;
+  --text:#1f2937; --muted:#4b5563; --hdr:#1e3a8a; --hdr-text:#ffffff;
+  --primary:#1d4ed8; --on-primary:#ffffff; --link:#1d4ed8; --focus:#1d4ed8;
+  --new-bg:#dcfce7; --new-fg:#166534; --chg-bg:#fef3c7; --chg-fg:#92400e; --can-bg:#fee2e2; --can-fg:#991b1b;
+  --pen-bg:#e0e7ff; --pen-fg:#3730a3; --neu-bg:#f3f4f6; --neu-fg:#374151;
+  --warn-bg:#fffbeb; --warn-fg:#78350f; --err-bg:#fef2f2; --err-fg:#7f1d1d; --info-bg:#eff6ff; --info-fg:#1e3a8a; --ok-bg:#f0fdf4; --ok-fg:#14532d;
+  --sel:#eff6ff; --bar:#1d4ed8; --bar2:#4b5563;
+  --font:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0b1220; --surface:#131c31; --surface2:#1d2a47; --border:#3d4c6d; --input-border:#8fa0c0;
+  --text:#e8edf7; --muted:#b4c0d6; --hdr:#0a1a45; --hdr-text:#ffffff;
+  --primary:#2f66e0; --on-primary:#ffffff; --link:#8db4ff; --focus:#9dbcff;
+  --new-bg:#123524; --new-fg:#86efac; --chg-bg:#3a2a0b; --chg-fg:#fcd34d; --can-bg:#3f1318; --can-fg:#fca5a5;
+  --pen-bg:#26235a; --pen-fg:#c7d2fe; --neu-bg:#1d2a47; --neu-fg:#cbd5e1;
+  --warn-bg:#33250a; --warn-fg:#fcd34d; --err-bg:#3b1219; --err-fg:#fecaca; --info-bg:#10244f; --info-fg:#bfd4ff; --ok-bg:#0f2e1d; --ok-fg:#bbf7d0;
+  --sel:#1a2b57; --bar:#6ea0ff; --bar2:#94a3b8; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0b1220; --surface:#131c31; --surface2:#1d2a47; --border:#3d4c6d; --input-border:#8fa0c0;
+  --text:#e8edf7; --muted:#b4c0d6; --hdr:#0a1a45; --hdr-text:#ffffff;
+  --primary:#2f66e0; --on-primary:#ffffff; --link:#8db4ff; --focus:#9dbcff;
+  --new-bg:#123524; --new-fg:#86efac; --chg-bg:#3a2a0b; --chg-fg:#fcd34d; --can-bg:#3f1318; --can-fg:#fca5a5;
+  --pen-bg:#26235a; --pen-fg:#c7d2fe; --neu-bg:#1d2a47; --neu-fg:#cbd5e1;
+  --warn-bg:#33250a; --warn-fg:#fcd34d; --err-bg:#3b1219; --err-fg:#fecaca; --info-bg:#10244f; --info-fg:#bfd4ff; --ok-bg:#0f2e1d; --ok-fg:#bbf7d0;
+  --sel:#1a2b57; --bar:#6ea0ff; --bar2:#94a3b8; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.45;font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.skip{position:absolute;left:8px;top:-60px;background:var(--surface);color:var(--link);padding:8px 12px;border:2px solid var(--link);border-radius:4px;z-index:50;font-weight:600}
+.skip:focus{top:8px}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.hdr :focus-visible{outline-color:#ffffff}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.hdr{background:var(--hdr);color:var(--hdr-text)}
+.hdr .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:8px 22px;padding-block:10px}
+.logo{font-weight:700;font-size:18px;letter-spacing:.2px}
+.proto-tag{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border:1px solid #fff;border-radius:3px;padding:1px 6px;margin-left:8px;vertical-align:2px}
+nav ul{display:flex;flex-wrap:wrap;gap:4px 8px;list-style:none;margin:0;padding:0}
+nav button{background:none;border:0;border-bottom:3px solid transparent;color:var(--hdr-text);font:inherit;font-size:14px;padding:6px 4px;cursor:pointer}
+nav button[aria-current="page"]{border-bottom-color:#fff;font-weight:700}
+.user{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:13.5px;flex-wrap:wrap}
+.btn{font:inherit;font-weight:600;font-size:14px;border:2px solid var(--primary);color:var(--link);background:var(--surface);padding:7px 14px;border-radius:5px;cursor:pointer}
+.btn.p{background:var(--primary);color:var(--on-primary)}
+.btn.s{font-size:13px;padding:4px 10px}
+.btn[aria-disabled="true"]{background:var(--surface2);border-color:var(--input-border);color:var(--muted);cursor:not-allowed}
+.hdr .btn{background:transparent;color:var(--hdr-text);border-color:#fff;padding:4px 10px;font-size:13px}
+main{display:block;padding-block:18px 40px}
+main:focus,h1:focus{outline:none}
+h1{font-size:22px;margin:0 0 12px;line-height:1.25;text-wrap:balance}
+h2{font-size:16px;margin:0 0 8px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px 16px;margin-bottom:14px}
+.card.flush{padding:0;overflow:hidden}
+.card.flush>h2{padding:12px 16px 0}
+.row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.row.sb{justify-content:space-between}
+.muted{color:var(--muted)}
+.sm{font-size:13px}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;align-items:start}
+.cols .card{margin-bottom:0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{border:1px solid var(--border);padding:7px 9px;text-align:left;font-size:14px;vertical-align:middle}
+th{background:var(--surface2);font-size:13px}
+td.c,th.c{text-align:center}
+.card.flush table{border-left:0;border-right:0}
+.bd{display:inline-block;padding:1px 8px;border-radius:11px;font-size:12.5px;font-weight:700;border:1px solid currentColor;white-space:nowrap}
+.bd.new{background:var(--new-bg);color:var(--new-fg)}.bd.chg{background:var(--chg-bg);color:var(--chg-fg)}.bd.can{background:var(--can-bg);color:var(--can-fg)}
+.bd.pen{background:var(--pen-bg);color:var(--pen-fg)}.bd.neu{background:var(--neu-bg);color:var(--neu-fg)}.bd.ack{background:var(--new-bg);color:var(--new-fg)}
+.alert{border:1px solid currentColor;border-radius:6px;padding:9px 13px;margin-bottom:14px;font-size:14px}
+.alert.warn{background:var(--warn-bg);color:var(--warn-fg)}.alert.err{background:var(--err-bg);color:var(--err-fg)}
+.alert.info{background:var(--info-bg);color:var(--info-fg)}.alert.ok{background:var(--ok-bg);color:var(--ok-fg)}
+.alert .row{justify-content:space-between}
+label,.lbl{display:block;font-weight:600;font-size:14px;margin-bottom:4px}
+input[type=text],input[type=email],input[type=password],select,textarea{width:100%;font:inherit;font-size:15px;color:var(--text);background:var(--surface);border:2px solid var(--input-border);border-radius:4px;padding:8px 10px}
+textarea{min-height:76px}
+input[aria-invalid="true"],select[aria-invalid="true"]{border-color:var(--err-fg)}
+.fld{margin-bottom:14px}
+.err-t{color:var(--err-fg);font-size:13.5px;font-weight:600;margin-top:4px}
+.chk{display:flex;gap:10px;align-items:flex-start;font-weight:600}
+.chk input{width:20px;height:20px;margin-top:1px;accent-color:var(--primary);flex:none}
+.cellbtn{font:inherit;font-weight:700;width:100%;background:var(--surface);color:var(--text);border:2px solid transparent;padding:6px 4px;cursor:pointer;border-radius:4px}
+.cellbtn[aria-pressed="true"]{background:var(--sel);border-color:var(--primary)}
+td.g{padding:2px;text-align:center}
+.item{display:block;width:100%;text-align:left;font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:10px;cursor:pointer}
+.item[aria-pressed="true"]{outline:3px solid var(--primary);outline-offset:-1px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:14px}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 14px}
+.tile .n{font-size:28px;font-weight:700;line-height:1.2}
+.barrow{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:14px}
+.barrow .d{width:42px}
+.bar{height:12px;border-radius:2px;background:var(--bar);display:inline-block}
+.bar.g{background:var(--bar2)}
+.login{max-width:430px;margin:8px auto 0}
+.demo{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+ol.walk{margin:6px 0 0;padding-left:20px}ol.walk li{margin:3px 0}
+.legend{font-size:13px;color:var(--muted);margin:8px 2px 14px}
+s{opacity:.85}
+@media (prefers-reduced-motion:no-preference){.btn,nav button{transition:background-color .12s}}
+@media (max-width:560px){.user{margin-left:0}h1{font-size:20px}}
+</style>
+
+<a class="skip" href="#main" id="skip">Skip to main content</a>
+<div id="app"></div>
+<div id="live" class="sr" aria-live="polite" role="status"></div>
+<noscript>This prototype needs JavaScript to run.</noscript>
+
+<script>
+(function(){
+'use strict';
+/* ---------------------------------------------------------------- data */
+var DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+var DATES=['26 Oct','27 Oct','28 Oct','29 Oct','30 Oct','31 Oct','1 Nov'];
+var SH={M:{n:'Morning',t:'06:00–14:00'},A:{n:'Afternoon',t:'14:00–22:00'},N:{n:'Night',t:'22:00–06:00'}};
+var USERS={
+  'an.nguyen@factory.example':{name:'Nguyen Van An',role:'Employee'},
+  'quan.tran@factory.example':{name:'Tran Minh Quan',role:'Manager'},
+  'bao.ly@factory.example':{name:'Ly Quoc Bao',role:'Boss'}};
+var PASSWORD='demo1234';
+var NAV={Employee:[['schedule','My Schedule'],['report','Report Absence']],
+         Manager:[['scheduling','Weekly Scheduling'],['team','Team Schedule'],['coverage','Absence & Coverage']],
+         Boss:[['overview','Staffing Overview']]};
+var HOME={Employee:'schedule',Manager:'scheduling',Boss:'overview'};
+var WEEKS=['19 Oct – 25 Oct 2026','26 Oct – 1 Nov 2026','2 Nov – 8 Nov 2026'];
+var REQ={M:[4,4,4,4,4,3,3],A:[3,3,3,3,3,2,2],N:[2,2,2,2,2,1,1]};
+var NIGHTS={'Nguyen Van An':2,'Tran Thi Binh':4,'Le Van Cuong':1,'Pham Thi Dung':3,'Hoang Van Em':6,'Vo Thi Phuong':3,'Dang Van Giang':2,'Do Van Hieu':2,'Bui Thi Hoa':2,'Truong Van Khoa':3,'Ngo Thi Lan':2,'Dinh Van Minh':5};
+
+function row(c,ch,prev,pos){return {c:c,ch:ch||null,prev:prev||'',pos:pos||'Machine Operator'};}
+var S={
+  user:null, screen:'login', flash:null, failed:0,
+  week:1, open:{}, ver:3, pub:'25 Oct 2026, 16:30', anAck:'pending', anAckAt:'',
+  an:[row('M'),row('M','new','Not assigned'),row('A','chg','Morning 06:00–14:00'),row('-'),row('M'),row('M','can','Morning 06:00–14:00'),row('-')],
+  team:[
+    {n:'Nguyen Van An',codes:null,ack:'pending'},
+    {n:'Tran Thi Binh',codes:'MMMMM--',ack:'25 Oct 17:02'},
+    {n:'Le Van Cuong',codes:'MMMM-M-',ack:'25 Oct 17:20'},
+    {n:'Pham Thi Dung',codes:'AAAAA--',ack:'25 Oct 18:05'},
+    {n:'Hoang Van Em',codes:'NNNNN--',ack:'pending'},
+    {n:'Vo Thi Phuong',codes:'-MMMMM-',ack:'25 Oct 17:40'},
+    {n:'Dang Van Giang',codes:'AA-AAA-',ack:'pending'},
+    {n:'Do Van Hieu',codes:'A--A-AA',ack:'25 Oct 19:12'},
+    {n:'Bui Thi Hoa',codes:'MMMMM--',ack:'25 Oct 17:05'},
+    {n:'Truong Van Khoa',codes:'-AAAAA-',ack:'25 Oct 17:58'},
+    {n:'Ngo Thi Lan',codes:'AAA-AA-',ack:'25 Oct 18:20'},
+    {n:'Dinh Van Minh',codes:'NN-NNN-',ack:'25 Oct 17:31'}],
+  pendingOnly:false,
+  items:[
+    {id:1,name:'Le Van Cuong',d:3,c:'M',pos:'Machine Operator',kind:'Absence reported 28 Oct 07:40',reason:'Illness',resolved:false,offer:{to:'Nguyen Van An',st:'pending',at:'28 Oct 08:05'}},
+    {id:2,name:'Pham Thi Dung',d:2,c:'A',pos:'Packer',kind:'No-show recorded 28 Oct 14:20',reason:'',resolved:false,offer:null},
+    {id:3,name:'Vo Thi Phuong',d:1,c:'M',pos:'Packer',kind:'Absence reported 26 Oct 20:05',reason:'Family matter',resolved:true,offer:{to:'Do Van Hieu',st:'accepted',at:'26 Oct 21:10'}}],
+  nextId:4, selItem:1, noShowOpen:false,
+  reports:[{shift:'Tue 20 Oct · Afternoon 14:00–22:00',at:'19 Oct 20:10',st:'Resolved – covered'}],
+  draft:null, sel:{s:'N',d:3}
+};
+var BASE_UNCOVERED=[{d:3,c:'N',pos:'QC Inspector'}];
+
+/* ---------------------------------------------------------------- helpers */
+var app=document.getElementById('app'), live=document.getElementById('live');
+function announce(m){live.textContent='';setTimeout(function(){live.textContent=m;},30);}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function flash(t,m){S.flash={t:t,m:m};announce(m);}
+function bd(cls,txt){return '<span class="bd '+cls+'">'+txt+'</span>';}
+function chBadge(ch){return ch==='new'?bd('new','+ NEW'):ch==='chg'?bd('chg','✎ CHANGED'):ch==='can'?bd('can','× CANCELLED'):'—';}
+function lab(c){return SH[c].n+' '+SH[c].t;}
+function dayLabel(d){return DAYS[d]+' '+DATES[d];}
+function status(it){
+  if(it.resolved) return ['Resolved','ack'];
+  if(it.offer&&it.offer.st==='pending') return ['Offer pending','pen'];
+  if(it.offer&&it.offer.st==='accepted') return ['Accepted – awaiting confirmation','chg'];
+  return ['Unresolved','can'];
+}
+function anCodes(){return S.an.map(function(r){return r.ch==='can'?'-':r.c;});}
+function codesOf(t){
+  var codes=(t.n==='Nguyen Van An')?anCodes():t.codes.split('');
+  codes=codes.slice();
+  S.items.forEach(function(it){
+    if(it.name===t.n&&it.d!==undefined){ if(it.resolved) codes[it.d]='-'; else codes[it.d]='Abs'; }
+    if(it.resolved&&it.offer&&it.offer.to===t.n&&it.offer.st==='accepted') codes[it.d]=it.c;
+  });
+  return codes;
+}
+function hoursOf(t){return codesOf(t).filter(function(c){return c==='M'||c==='A'||c==='N'||c==='Abs';}).length*8;}
+function anHours(){return S.an.filter(function(r){return r.c!=='-'&&r.ch!=='can';}).length*8;}
+function uncovered(){
+  var list=BASE_UNCOVERED.map(function(u){return {d:u.d,c:u.c,pos:u.pos,src:'Published schedule'};});
+  S.items.forEach(function(it){if(!it.resolved)list.push({d:it.d,c:it.c,pos:it.pos,src:it.name+' ('+(it.kind.indexOf('No-show')===0?'no-show':'absence')+')'});});
+  return list;
+}
+function current(){return S.items.filter(function(i){return i.id===S.selItem;})[0]||null;}
+function nowStr(){return '28 Oct 16:20';}
+
+/* ---------------------------------------------------------------- routing / render */
+function go(screen){S.screen=screen;S.flash=null;S.open={};render(true);}
+function render(focusHeading){
+  var prev=document.activeElement, fk=prev&&prev.getAttribute?prev.getAttribute('data-fk'):null;
+  var h='';
+  if(S.user) h+=header();
+  else h+='<header class="hdr"><div class="wrap"><div class="logo">ShiftManager<span class="proto-tag">Prototype</span></div></div></header>';
+  h+='<main id="main" tabindex="-1"><div class="wrap">'+(S.flash?'<div class="alert '+S.flash.t+'" role="status">'+esc(S.flash.m)+'</div>':'')+SCREENS[S.screen]()+'</div></main>';
+  app.innerHTML=h;
+  var el=null;
+  if(!focusHeading&&fk) el=app.querySelector('[data-fk="'+fk+'"]');
+  if(!el&&focusHeading){el=app.querySelector('h1');if(el){el.setAttribute('tabindex','-1');}}
+  if(el) el.focus();
+  if(focusHeading) window.scrollTo(0,0);
+}
+function header(){
+  var nav=NAV[S.user.role].map(function(n){
+    return '<li><button type="button" data-act="go" data-to="'+n[0]+'" data-fk="nav-'+n[0]+'"'+(S.screen===n[0]?' aria-current="page"':'')+'>'+n[1]+'</button></li>';}).join('');
+  return '<header class="hdr"><div class="wrap"><div class="logo">ShiftManager<span class="proto-tag">Prototype</span></div>'+
+    '<nav aria-label="Main"><ul>'+nav+'</ul></nav>'+
+    '<div class="user"><span><strong>'+S.user.name+'</strong> · '+S.user.role+'</span><button type="button" class="btn" data-act="logout" data-fk="logout">Log out</button></div></div></header>';
+}
+function weekBar(label,idKey){
+  return '<div class="row"><button type="button" class="btn s" data-act="week" data-dir="-1" data-fk="'+idKey+'-prev" aria-label="Previous week">‹ Previous</button>'+
+    '<strong aria-live="polite">'+label+'</strong>'+
+    '<button type="button" class="btn s" data-act="week" data-dir="1" data-fk="'+idKey+'-next" aria-label="Next week">Next ›</button></div>';
+}
+
+/* ---------------------------------------------------------------- screens */
+var SCREENS={};
+
+SCREENS.login=function(){
+  return '<div class="login"><h1>Log in to ShiftManager</h1>'+
+  '<div class="card"><form data-form="login" novalidate>'+
+  '<div id="login-err" class="alert err" role="alert" hidden></div>'+
+  '<div class="fld"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="username" aria-describedby="email-err"><div id="email-err" class="err-t" hidden></div></div>'+
+  '<div class="fld"><label for="pw">Password</label><input id="pw" name="pw" type="password" autocomplete="current-password" aria-describedby="pw-err"><div id="pw-err" class="err-t" hidden></div></div>'+
+  '<button type="submit" class="btn p" style="width:100%" data-fk="login">Log In</button>'+
+  '<p class="muted sm" style="margin:12px 0 0">Accounts are created in advance. If you cannot log in, contact your Manager.</p></form></div>'+
+  '<div class="card"><h2>Demo accounts</h2><p class="sm muted" style="margin:0">All accounts use the password <strong>demo1234</strong>. Select a role to fill in the form.</p>'+
+  '<div class="demo"><button type="button" class="btn s" data-act="fill" data-u="an.nguyen@factory.example" data-fk="fill-e">Employee</button>'+
+  '<button type="button" class="btn s" data-act="fill" data-u="quan.tran@factory.example" data-fk="fill-m">Manager</button>'+
+  '<button type="button" class="btn s" data-act="fill" data-u="bao.ly@factory.example" data-fk="fill-b">Boss</button></div></div>'+
+  '<div class="card"><h2>Suggested walkthrough</h2><ol class="walk sm">'+
+  '<li><strong>Employee:</strong> open the update notice and acknowledge it, then go to Report Absence and accept the replacement offer.</li>'+
+  '<li><strong>Manager:</strong> in Absence &amp; Coverage, confirm the replacement. Then try Weekly Scheduling: generate a draft and publish it.</li>'+
+  '<li><strong>Employee</strong> again: the Thursday shift appears as NEW in version 4 and waits for acknowledgement.</li>'+
+  '<li><strong>Manager</strong> and <strong>Boss</strong>: Team Schedule and Staffing Overview show the new status.</li></ol>'+
+  '<p class="sm muted" style="margin:8px 0 0">All data is fictional and kept in memory. Reloading the page resets it.</p></div></div>';
+};
+
+SCREENS.schedule=function(){
+  var w=S.week, h='<h1>My Schedule</h1>';
+  var pendingBanner=(w===1&&S.anAck==='pending')?
+    '<div class="alert info"><div class="row"><span><strong>1 schedule update is waiting for your acknowledgement.</strong> Version '+S.ver+' · published '+S.pub+'</span>'+
+    '<button type="button" class="btn p s" data-act="go" data-to="ack" data-fk="review">Review &amp; acknowledge</button></div></div>':'';
+  h+=pendingBanner;
+  h+='<div class="row sb" style="margin-bottom:10px">'+weekBar(WEEKS[w],'wk')+'</div>';
+  if(w===2){
+    return h+'<div class="card"><strong>No schedule published for this week yet.</strong><p class="muted" style="margin:6px 0 0">Drafts are not shown to employees. You will see the schedule here after your Manager publishes it.</p></div>';
+  }
+  if(w===0){
+    var past=['M','M','M','M','M','-','-'];
+    h+='<div class="card" style="padding:9px 14px"><span class="sm">Official version <strong>2</strong> · published 18 Oct 2026, 17:10 by Tran Minh Quan</span> &nbsp; Acknowledgement: '+bd('ack','Acknowledged')+'</div>';
+    var rows=past.map(function(c,i){var d=['19 Oct','20 Oct','21 Oct','22 Oct','23 Oct','24 Oct','25 Oct'][i];
+      return c==='-'?'<tr><td>'+DAYS[i]+' '+d+'</td><td class="muted">Day off</td><td>—</td><td>—</td><td>—</td></tr>':
+      '<tr><td>'+DAYS[i]+' '+d+'</td><td>Morning</td><td>06:00–14:00</td><td>Machine Operator</td><td>—</td></tr>';}).join('');
+    return h+'<div class="card flush scroll" role="region" aria-label="Schedule table" tabindex="0"><table><caption class="sr">Assigned shifts, week of 19 October</caption><thead><tr><th scope="col">Date</th><th scope="col">Shift</th><th scope="col">Time</th><th scope="col">Position</th><th scope="col">Change</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+      '<p class="sm muted">Scheduled hours this week: <strong>40 h</strong> · Night shifts: <strong>0</strong></p>';
+  }
+  var ackTxt=S.anAck==='pending'?bd('pen','Pending'):bd('ack','Acknowledged')+(S.anAckAt?' <span class="sm muted">'+S.anAckAt+'</span>':'');
+  h+='<div class="card" style="padding:9px 14px"><div class="row sb"><span class="sm">Official version <strong>'+S.ver+'</strong> · published '+S.pub+' by Tran Minh Quan</span><span class="sm">Acknowledgement: '+ackTxt+'</span></div></div>';
+  var trs=S.an.map(function(r,i){
+    var dl=DAYS[i]+' '+DATES[i];
+    if(r.c==='-') return '<tr><td>'+dl+'</td><td class="muted">Day off</td><td>—</td><td>—</td><td>—</td></tr>';
+    var cancelled=r.ch==='can', wrap=function(t){return cancelled?'<s>'+t+'</s>':t;};
+    var chg=r.ch?chBadge(r.ch)+' <button type="button" class="btn s" data-act="toggle" data-i="'+i+'" data-fk="det-'+i+'" aria-expanded="'+(!!S.open[i])+'" aria-label="Details for '+dl+'">Details</button>':'—';
+    var out='<tr><td>'+dl+'</td><td>'+wrap(SH[r.c].n)+'</td><td>'+wrap(SH[r.c].t)+'</td><td>'+wrap(r.pos)+'</td><td>'+chg+'</td></tr>';
+    if(S.open[i]) out+='<tr><td colspan="5" style="background:var(--surface2)"><strong>Previous:</strong> '+(r.prev||'—')+' &nbsp;→&nbsp; <strong>Current:</strong> '+(cancelled?'Removed':lab(r.c)+', '+r.pos)+'</td></tr>';
+    return out;}).join('');
+  h+='<div class="card flush scroll" role="region" aria-label="Schedule table" tabindex="0"><table><caption class="sr">Assigned shifts, week of 26 October</caption><thead><tr><th scope="col">Date</th><th scope="col">Shift</th><th scope="col">Time</th><th scope="col">Position</th><th scope="col">Change</th></tr></thead><tbody>'+trs+'</tbody></table></div>';
+  h+='<p class="sm muted">Scheduled hours this week: <strong>'+anHours()+' h</strong> · Night shifts: <strong>0</strong></p>';
+  return h;
+};
+
+function changeRows(){
+  return S.an.map(function(r,i){return {r:r,i:i};}).filter(function(x){return x.r.ch;});
+}
+SCREENS.ack=function(){
+  var ch=changeRows();
+  var trs=ch.map(function(x){return '<tr><td>'+dayLabel(x.i)+'</td><td>'+(x.r.prev==='Not assigned'?'<span class="muted">Not assigned</span>':x.r.prev)+'</td><td>'+(x.r.ch==='can'?'<span class="muted">Removed</span>':lab(x.r.c)+', '+x.r.pos)+'</td><td>'+chBadge(x.r.ch)+'</td></tr>';}).join('');
+  return '<div class="row sb"><h1>Schedule update – Version '+S.ver+'</h1><span>Status: '+(S.anAck==='pending'?bd('pen','Pending'):bd('ack','Acknowledged'))+'</span></div>'+
+  '<div class="card"><span class="sm">Week <strong>26 Oct – 1 Nov 2026</strong> · published '+S.pub+' by Tran Minh Quan · '+ch.length+' change'+(ch.length===1?'':'s')+' affect'+(ch.length===1?'s':'')+' you</span></div>'+
+  '<div class="card flush scroll" role="region" aria-label="Changes table" tabindex="0"><table><caption class="sr">Changes in this update</caption><thead><tr><th scope="col">Date</th><th scope="col">Previous assignment</th><th scope="col">Current assignment</th><th scope="col">Change</th></tr></thead><tbody>'+trs+'</tbody></table></div>'+
+  (S.anAck==='pending'?
+  '<div class="card"><form data-form="ack" novalidate><label class="chk" for="reviewed"><input type="checkbox" id="reviewed" aria-describedby="ack-err"><span>I have reviewed the changes above.</span></label>'+
+  '<div id="ack-err" class="err-t" hidden></div>'+
+  '<div class="row" style="margin-top:12px"><button type="submit" class="btn p" data-fk="ack-go">Acknowledge</button><button type="button" class="btn" data-act="go" data-to="schedule" data-fk="ack-back">Back to My Schedule</button></div>'+
+  '<p class="muted sm" style="margin:12px 0 0">Acknowledging confirms that you have seen this update. It does not change your assignments. To report that you cannot attend a shift, use <strong>Report Absence</strong>.</p></form></div>':
+  '<div class="card"><p style="margin:0 0 10px"><strong>Acknowledged</strong> '+S.anAckAt+'. Nothing else is needed.</p><button type="button" class="btn" data-act="go" data-to="schedule" data-fk="ack-back">Back to My Schedule</button></div>');
+};
+
+SCREENS.report=function(){
+  var shifts=[];
+  S.an.forEach(function(r,i){if(r.c!=='-'&&r.ch!=='can'&&i>=2)shifts.push({i:i,t:dayLabel(i)+' · '+lab(r.c)+' · '+r.pos});});
+  var opts='<option value="">Select a shift</option>'+shifts.map(function(s){return '<option value="'+s.i+'">'+s.t+'</option>';}).join('');
+  var offers=S.items.filter(function(it){return it.offer&&it.offer.to==='Nguyen Van An'&&!(it.resolved&&it.offer.st!=='accepted');});
+  var oh=offers.length?offers.map(function(it){
+    var o=it.offer, d=dayLabel(it.d)+' · '+lab(it.c);
+    var body='<strong>'+d+'</strong><br><span class="sm">'+it.pos+' · covering an absent colleague</span><br><span class="sm muted">Offered '+o.at+' by Tran Minh Quan</span> ';
+    if(o.st==='pending') body+=bd('pen','Pending')+'<div class="row" style="margin-top:8px"><button type="button" class="btn p s" data-act="offer" data-id="'+it.id+'" data-r="accepted" data-fk="acc-'+it.id+'">Accept</button><button type="button" class="btn s" data-act="offer" data-id="'+it.id+'" data-r="rejected" data-fk="dec-'+it.id+'">Decline</button></div>';
+    else if(o.st==='accepted'&&!it.resolved) body+=bd('chg','Accepted')+'<p class="sm muted" style="margin:6px 0 0">Waiting for the Manager to confirm. Your schedule changes only after confirmation.</p>';
+    else if(o.st==='accepted'&&it.resolved) body+=bd('ack','Confirmed')+'<p class="sm muted" style="margin:6px 0 0">The Manager confirmed this replacement. See My Schedule.</p>';
+    else if(o.st==='rejected') body+=bd('neu','Declined');
+    else body+=bd('neu','Cancelled by Manager');
+    return '<div class="card" style="margin:10px 0 0;background:var(--surface2)">'+body+'</div>';}).join(''):'<p class="muted" style="margin-top:8px">No replacement offers right now.</p>';
+  var rep=S.reports.map(function(r){return '<tr><td>'+r.shift+'</td><td>'+r.at+'</td><td>'+bd(r.st.indexOf('Resolved')===0?'ack':'chg',r.st)+'</td></tr>';}).join('');
+  return '<h1>Report Absence</h1><div class="cols">'+
+  '<div class="card"><h2>Report that you cannot attend a shift</h2><form data-form="report" novalidate>'+
+  '<div class="fld"><label for="shift">Assigned shift</label><select id="shift" aria-describedby="shift-err">'+opts+'</select><div id="shift-err" class="err-t" hidden></div></div>'+
+  '<div class="fld"><label for="reason">Reason</label><select id="reason"><option>Illness</option><option>Family matter</option><option>Transport problem</option><option>Other</option></select></div>'+
+  '<div class="fld"><label for="note">Note for the Manager (optional)</label><textarea id="note"></textarea></div>'+
+  '<button type="submit" class="btn p" data-fk="submit-rep">Submit report</button>'+
+  '<p class="muted sm" style="margin:10px 0 0">The Manager will look for a replacement. Your shift stays assigned to you until a replacement is confirmed.</p></form></div>'+
+  '<div class="card"><h2>Replacement offers for you</h2>'+oh+'<p class="sm muted" style="margin:10px 0 0">Accepting is not final: the Manager must still confirm the replacement.</p></div></div>'+
+  '<div class="card flush scroll" style="margin-top:14px" role="region" aria-label="My absence reports" tabindex="0"><h2>My absence reports</h2><table><caption class="sr">My absence reports</caption><thead><tr><th scope="col">Shift</th><th scope="col">Submitted</th><th scope="col">Status</th></tr></thead><tbody>'+rep+'</tbody></table></div>';
+};
+
+SCREENS.scheduling=function(){
+  var dr=S.draft, h='<h1>Weekly Scheduling</h1>';
+  h+='<div class="card"><div class="row sb">'+weekBar('2 Nov – 8 Nov 2026','sch')+'<span>'+(dr&&dr.published?bd('ack','Published – version 1'):dr?bd('neu','Draft – not published'):bd('neu','No draft yet'))+'</span>'+
+    (!dr?'<button type="button" class="btn p" data-act="generate" data-fk="gen">Generate Draft</button>':(dr.published?'':'<button type="button" class="btn" data-act="generate" data-fk="gen">Regenerate Draft</button>'))+'</div></div>';
+  if(!dr) return h+'<div class="card"><strong>No draft for this week.</strong><p class="muted" style="margin:6px 0 0">Select Generate Draft. The system uses staffing requirements, qualifications, availability, rest-time rules, and the last four weeks of workload.</p></div>';
+  if(dr.unc>0&&!dr.published) h+='<div class="alert warn"><strong>Warning:</strong> '+dr.unc+' uncovered position – Thu 5 Nov · Night · QC Inspector. Publishing requires your explicit confirmation.</div>';
+  var heads=['Mon 2','Tue 3','Wed 4','Thu 5','Fri 6','Sat 7','Sun 8'].map(function(d){return '<th scope="col" class="c">'+d+' Nov</th>';}).join('');
+  var body=['M','A','N'].map(function(s){
+    var cells=REQ[s].map(function(r,d){
+      var miss=(s==='N'&&d===3&&dr.unc>0), got=miss?r-1:r, on=(S.sel.s===s&&S.sel.d===d);
+      return '<td class="g"><button type="button" class="cellbtn" data-act="cell" data-s="'+s+'" data-d="'+d+'" data-fk="cell-'+s+d+'" aria-pressed="'+on+'" aria-label="'+SH[s].n+', '+['Mon 2','Tue 3','Wed 4','Thu 5','Fri 6','Sat 7','Sun 8'][d]+' November: '+got+' of '+r+' positions filled'+(miss?', 1 uncovered':'')+'">'+got+'/'+r+(miss?'<br>'+bd('can','⚠ Uncovered'):'')+'</button></td>';}).join('');
+    return '<tr><th scope="row">'+SH[s].n+'<br><span class="sm muted" style="font-weight:400">'+SH[s].t+'</span></th>'+cells+'</tr>';}).join('');
+  h+='<div class="card flush scroll" role="region" aria-label="Coverage grid" tabindex="0"><h2>Coverage (assigned / required positions)</h2><table style="margin-top:8px"><caption class="sr">Assigned and required positions per shift and day</caption><thead><tr><th scope="col">Shift</th>'+heads+'</tr></thead><tbody>'+body+'</tbody></table></div>';
+  h+='<p class="sm muted" style="margin:-6px 2px 14px">Required: 57 · Assigned: '+(57-dr.unc)+' · Uncovered: '+dr.unc+'</p>';
+  var sel=S.sel, req=REQ[sel.s][sel.d], isU=(sel.s==='N'&&sel.d===3&&dr.unc>0);
+  h+='<div class="card"><h2>Selected: '+['Mon 2','Tue 3','Wed 4','Thu 5','Fri 6','Sat 7','Sun 8'][sel.d]+' Nov · '+lab(sel.s)+'</h2><p class="sm" style="margin:0">Required '+req+' · '+(isU?'Assigned 1 (Hoang Van Em, Machine Operator) · Uncovered: QC Inspector':'All '+req+' positions covered.')+'</p>';
+  if(isU&&!dr.published) h+='<form data-form="assign" style="margin-top:12px" class="row"><div style="flex:1;min-width:220px"><label for="cand">Assign an eligible employee (manual adjustment)</label><select id="cand"><option>Do Van Hieu – QC Inspector, rest time OK</option><option>Vo Thi Phuong – QC Inspector, rest time OK</option></select></div><button type="submit" class="btn" data-fk="assign">Assign</button></form>';
+  h+='</div>';
+  h+='<div class="card flush scroll" role="region" aria-label="Fairness indicators" tabindex="0"><h2>Fairness indicators (current week + 4 preceding weeks)</h2><table style="margin-top:8px"><caption class="sr">Fairness indicators</caption><thead><tr><th scope="col">Employee</th><th scope="col" class="c">Hours this week</th><th scope="col" class="c">Avg. hours (5 weeks)</th><th scope="col" class="c">Night shifts (5 weeks)</th><th scope="col" class="c">“Prefer Not” conflicts</th></tr></thead><tbody>'+
+   '<tr><td>Nguyen Van An</td><td class="c">32</td><td class="c">36</td><td class="c">2</td><td class="c">0</td></tr><tr><td>Tran Thi Binh</td><td class="c">40</td><td class="c">38</td><td class="c">4</td><td class="c">0</td></tr><tr><td>Le Van Cuong</td><td class="c">32</td><td class="c">35</td><td class="c">1</td><td class="c">1</td></tr><tr><td>Hoang Van Em</td><td class="c">40</td><td class="c">39</td><td class="c">6</td><td class="c">0</td></tr></tbody></table></div>';
+  if(!dr.published){
+    if(dr.confirm) h+='<div class="alert warn" role="alertdialog" aria-labelledby="cf-t"><p id="cf-t" style="margin:0 0 8px"><strong>Publish with '+dr.unc+' uncovered position?</strong> Employees will see the schedule with this shortage. Your confirmation is recorded.</p><div class="row"><button type="button" class="btn p" data-act="publish-yes" data-fk="pub-yes">Publish anyway</button><button type="button" class="btn" data-act="publish-no" data-fk="pub-no">Go back</button></div></div>';
+    else h+='<div class="row"><button type="button" class="btn" data-act="savedraft" data-fk="save">Save Draft</button><button type="button" class="btn p" data-act="publish" data-fk="pub">Publish Schedule</button></div>';
+  }
+  return h;
+};
+
+SCREENS.team=function(){
+  var w=S.week;
+  var h='<h1>Team Schedule</h1><div class="row sb" style="margin-bottom:10px">'+weekBar(WEEKS[w],'tw')+'<span class="sm muted">Official version '+(w===1?S.ver:'–')+'</span></div>';
+  if(w!==1) return h+'<div class="card"><strong>Sample data is available for the week of 26 Oct only.</strong><p class="muted" style="margin:6px 0 0">In the real system this page shows the official version of the selected week, or tells you that none is published.</p></div>';
+  var pend=S.team.filter(function(t){return t.ack==='pending';}).length, tot=S.team.length;
+  h+='<div class="card" style="padding:9px 14px"><div class="row sb"><span><strong>'+(tot-pend)+' of '+tot+'</strong> employees have acknowledged the latest update · <strong>'+pend+' pending</strong></span>'+
+    '<label class="chk" style="margin:0;font-weight:500" for="pend"><input type="checkbox" id="pend" data-act="pendonly" data-fk="pend"'+(S.pendingOnly?' checked':'')+'><span>Show pending only</span></label></div></div>';
+  var rows=S.team.filter(function(t){return !S.pendingOnly||t.ack==='pending';}).map(function(t){
+    var codes=codesOf(t);
+    return '<tr><th scope="row" style="background:none;font-size:14px;font-weight:500">'+t.n+'</th>'+codes.map(function(c){return '<td class="c">'+(c==='-'?'–':c)+'</td>';}).join('')+'<td class="c">'+hoursOf(t)+'</td><td>'+(t.ack==='pending'?bd('pen','Pending'):bd('ack','Acknowledged')+' <span class="sm muted">'+t.ack+'</span>')+'</td></tr>';}).join('');
+  h+='<div class="card flush scroll" role="region" aria-label="Team schedule table" tabindex="0"><table><caption class="sr">Team schedule for the week of 26 October</caption><thead><tr><th scope="col">Employee</th>'+DAYS.map(function(d){return '<th scope="col" class="c">'+d+'</th>';}).join('')+'<th scope="col" class="c">Hours</th><th scope="col">Acknowledgement</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  h+='<p class="legend">M = Morning 06–14 · A = Afternoon 14–22 · N = Night 22–06 · – = Off · Abs = absence or no-show, replacement not confirmed</p>';
+  var u=uncovered();
+  h+=u.length?'<div class="alert warn"><strong>Uncovered positions ('+u.length+'):</strong> '+u.map(function(x){return dayLabel(x.d)+' · '+SH[x.c].n+' · '+x.pos;}).join('; ')+'</div>':'<div class="alert ok">All positions are covered.</div>';
+  return h;
+};
+
+SCREENS.coverage=function(){
+  var h='<div class="row sb"><h1>Absence &amp; Shift Coverage</h1><button type="button" class="btn s" data-act="noshow" data-fk="ns-open" aria-expanded="'+S.noShowOpen+'">Record no-show</button></div>';
+  if(S.noShowOpen){
+    h+='<div class="card"><h2>Record a no-show</h2><form data-form="noshow" class="row" novalidate style="align-items:flex-end">'+
+    '<div style="flex:1;min-width:170px"><label for="ns-emp">Employee</label><select id="ns-emp">'+S.team.map(function(t){return '<option>'+t.n+'</option>';}).join('')+'</select></div>'+
+    '<div style="flex:1;min-width:130px"><label for="ns-day">Day</label><select id="ns-day">'+DAYS.map(function(d,i){return '<option value="'+i+'">'+dayLabel(i)+'</option>';}).join('')+'</select></div>'+
+    '<div style="flex:1;min-width:150px"><label for="ns-sh">Shift</label><select id="ns-sh"><option value="M">Morning</option><option value="A">Afternoon</option><option value="N">Night</option></select></div>'+
+    '<button type="submit" class="btn p" data-fk="ns-save">Save no-show</button></form></div>';
+  }
+  var list=S.items.map(function(it){var st=status(it);
+    return '<button type="button" class="item" data-act="pick" data-id="'+it.id+'" data-fk="item-'+it.id+'" aria-pressed="'+(it.id===S.selItem)+'"><strong>'+it.name+'</strong><br><span class="sm">'+dayLabel(it.d)+' · '+SH[it.c].n+' · '+it.kind+'</span><br>'+bd(st[1],st[0])+'</button>';}).join('');
+  var it=current(), det='';
+  if(it){
+    var st=status(it);
+    det+='<div class="card"><h2>Coverage for '+dayLabel(it.d)+' · '+lab(it.c)+' · '+it.pos+'</h2><p class="sm muted" style="margin:0">Absent: '+it.name+(it.reason?' · Reason: '+it.reason:'')+' · '+(it.resolved?'Coverage confirmed.':'The shortage stays visible until a valid replacement is confirmed.')+'</p></div>';
+    var active=it.offer&&(it.offer.st==='pending'||it.offer.st==='accepted');
+    var cands=S.team.filter(function(t){return t.n!==it.name&&['Nguyen Van An','Vo Thi Phuong','Do Van Hieu'].indexOf(t.n)>-1;});
+    var crow=cands.map(function(t){
+      var cell, mine=it.offer&&it.offer.to===t.n;
+      if(it.resolved) cell=mine?bd('ack','Confirmed'):'—';
+      else if(mine&&it.offer.st==='pending') cell=bd('pen','Pending')+' <button type="button" class="btn s" data-act="cancel" data-id="'+it.id+'" data-fk="cancel-'+it.id+'" aria-label="Cancel offer to '+t.n+'">Cancel offer</button>';
+      else if(mine&&it.offer.st==='accepted') cell=bd('chg','Accepted');
+      else if(active) cell='<button type="button" class="btn s" aria-disabled="true" data-act="noop" data-why="Only one pending offer is allowed per uncovered position. Cancel the current offer first." data-fk="send-'+t.n.split(' ').pop()+'" aria-label="Send offer to '+t.n+' (unavailable)">Send offer</button>';
+      else cell=(mine&&it.offer.st==='rejected'?bd('neu','Declined')+' ':mine&&it.offer.st==='cancelled'?bd('neu','Cancelled')+' ':'')+'<button type="button" class="btn s" data-act="send" data-id="'+it.id+'" data-to="'+t.n+'" data-fk="send-'+t.n.split(' ').pop()+'" aria-label="Send offer to '+t.n+'">Send offer</button>';
+      return '<tr><td>'+t.n+'</td><td class="c">'+hoursOf(t)+'</td><td class="c">OK</td><td class="c">'+cell+'</td></tr>';}).join('');
+    det+='<div class="card flush scroll" role="region" aria-label="Eligible replacement candidates" tabindex="0"><h2>Eligible replacement candidates</h2><table style="margin-top:8px"><caption class="sr">Eligible candidates for this position</caption><thead><tr><th scope="col">Employee</th><th scope="col" class="c">Hours this week</th><th scope="col" class="c">Rest time</th><th scope="col" class="c">Offer</th></tr></thead><tbody>'+crow+'</tbody></table>'+
+      '<p class="sm muted" style="padding:6px 16px;margin:0">Only one pending offer is allowed per uncovered position, so other offers are unavailable while one is pending.</p></div>';
+    var ready=it.offer&&it.offer.st==='accepted'&&!it.resolved;
+    det+='<div class="card"><h2>Manager decision</h2>'+(it.resolved?'<p style="margin:0">'+bd('ack','Resolved')+' The replacement was confirmed and published in version '+S.ver+'.</p>':
+      '<p class="sm muted" style="margin:0 0 8px">'+(ready?'The employee accepted. Confirm to publish the replacement as a new schedule version.':'Available after the employee accepts an offer.')+'</p><div class="row">'+
+      '<button type="button" class="btn p"'+(ready?' data-act="confirm"':' aria-disabled="true" data-act="noop" data-why="Confirmation is available after the employee accepts the offer."')+' data-id="'+it.id+'" data-fk="confirm">Confirm replacement</button>'+
+      '<button type="button" class="btn"'+(ready?' data-act="decline"':' aria-disabled="true" data-act="noop" data-why="This is available after the employee accepts the offer."')+' data-id="'+it.id+'" data-fk="decline">Do not confirm</button></div>')+'</div>';
+  }
+  return h+'<div class="cols" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"><div><h2 class="sr">Reported absences and no-shows</h2>'+list+'</div><div>'+det+'</div></div>';
+};
+
+SCREENS.overview=function(){
+  var u=uncovered(), unc=u.length, req=57, cov=Math.round((req-unc)/req*100);
+  var pend=S.team.filter(function(t){return t.ack==='pending';}).length;
+  var unres=S.items.filter(function(i){return !i.resolved;}).length;
+  var w=S.week;
+  var tiles='<div class="tiles"><div class="tile"><div class="sm muted">Coverage</div><div class="n">'+cov+'%</div><div class="sm">'+(req-unc)+' of '+req+' positions</div></div>'+
+    '<div class="tile"><div class="sm muted">Uncovered positions</div><div class="n">'+unc+'</div><div class="sm">'+(unc?u.map(function(x){return DAYS[x.d]+' '+SH[x.c].n;}).join(', '):'None')+'</div></div>'+
+    '<div class="tile"><div class="sm muted">Absences / no-shows</div><div class="n">'+S.items.length+'</div><div class="sm">'+unres+' unresolved</div></div>'+
+    '<div class="tile"><div class="sm muted">Pending acknowledgements</div><div class="n">'+pend+'</div><div class="sm">of '+S.team.length+' employees</div></div></div>';
+  var h='<div class="row sb"><h1>Staffing &amp; Workload Overview</h1>'+weekBar(WEEKS[w],'bw')+'</div>';
+  if(w!==1) return h+'<div class="card"><strong>Sample data is available for the week of 26 Oct only.</strong></div>';
+  var cd=DAYS.map(function(d,i){var pos=i<5?9:6, un=u.filter(function(x){return x.d===i;}).length, p=Math.round((pos-un)/pos*100);
+    return '<div class="barrow"><span class="d">'+d+'</span><span class="bar" aria-hidden="true" style="width:'+(p*2.2)+'px"></span><strong>'+p+'%</strong></div>';}).join('');
+  var wl=S.team.map(function(t){var hr=hoursOf(t);return '<tr><td>'+t.n+'</td><td><span class="bar g" aria-hidden="true" style="width:'+(hr*3)+'px"></span> <strong>'+hr+' h</strong></td><td class="c">'+NIGHTS[t.n]+'</td></tr>';}).join('');
+  return h+tiles+'<div class="cols"><div class="card"><h2>Coverage by day</h2>'+cd+'</div>'+
+  '<div class="card flush scroll" role="region" aria-label="Workload distribution" tabindex="0"><h2>Workload distribution</h2><table style="margin-top:8px"><caption class="sr">Scheduled hours and night shifts per employee</caption><thead><tr><th scope="col">Employee</th><th scope="col">Scheduled hours</th><th scope="col" class="c">Night shifts (5 wks)</th></tr></thead><tbody>'+wl+'</tbody></table></div></div>'+
+  '<div class="alert info" style="margin-top:14px"><strong>Read-only summary.</strong> Schedules are edited by the Manager only. You see authorized staffing and workload summaries for the production team.</div>';
+};
+
+/* ---------------------------------------------------------------- actions */
+function applyReplacement(it){
+  var cand=it.offer.to;
+  S.ver+=1; S.pub='28 Oct 2026, 16:25';
+  S.items.forEach(function(x){ });
+  // clear change markers of the previous version, then mark this one
+  S.an=S.an.map(function(r){return r.ch==='can'?row('-'):row(r.c,null,'',r.pos);});
+  if(cand==='Nguyen Van An'){S.an[it.d]=row(it.c,'new','Not assigned',it.pos);S.anAck='pending';S.anAckAt='';}
+  if(it.name==='Nguyen Van An'){S.an[it.d]=row(it.c,'can',lab(it.c),it.pos);S.anAck='pending';S.anAckAt='';}
+  S.team.forEach(function(t){if(t.n===cand&&cand!=='Nguyen Van An')t.ack='pending';});
+  it.resolved=true;
+}
+function act(a,ds,el){
+  switch(a){
+    case 'go': go(ds.to);return;
+    case 'logout': S={}.constructor.assign(S,{user:null,screen:'login',flash:null,week:1,open:{}});render(true);announce('Logged out.');return;
+    case 'fill': document.getElementById('email').value=ds.u;document.getElementById('pw').value=PASSWORD;document.getElementById('pw').focus();return;
+    case 'week':
+      var nw=S.week+(+ds.dir);
+      if(S.screen==='scheduling'){flash('info','Only the week of 2 Nov is available in this prototype.');render();return;}
+      if(nw<0||nw>2){flash('info','No further weeks in this prototype.');render();return;}
+      S.week=nw;S.flash=null;render();announce('Showing '+WEEKS[nw]);return;
+    case 'toggle': S.open[ds.i]=!S.open[ds.i];render();return;
+    case 'noop': flash('info',ds.why||'Not available yet.');render();return;
+    case 'generate': S.draft={unc:1,published:false,confirm:false};S.sel={s:'N',d:3};flash('ok','Draft generated for 2–8 Nov. 1 position could not be covered.');render();return;
+    case 'cell': S.sel={s:ds.s,d:+ds.d};S.flash=null;render();return;
+    case 'savedraft': flash('ok','Draft saved. The official schedule is unchanged.');render();return;
+    case 'publish':
+      if(S.draft.unc>0){S.draft.confirm=true;S.flash=null;render();var b=app.querySelector('[data-fk="pub-yes"]');if(b)b.focus();announce('Confirm publishing with an uncovered position.');}
+      else{S.draft.published=true;flash('ok','Schedule published as version 1. Employees can now see it.');render();}
+      return;
+    case 'publish-yes': S.draft.published=true;S.draft.confirm=false;flash('ok','Schedule published as version 1 with '+S.draft.unc+' uncovered position. Your confirmation was recorded.');render();return;
+    case 'publish-no': S.draft.confirm=false;S.flash=null;render();return;
+    case 'pendonly': S.pendingOnly=el.checked;render();announce(S.pendingOnly?'Showing pending acknowledgements only.':'Showing all employees.');return;
+    case 'noshow': S.noShowOpen=!S.noShowOpen;render();if(S.noShowOpen){var f=document.getElementById('ns-emp');if(f)f.focus();}return;
+    case 'pick': S.selItem=+ds.id;S.flash=null;render();return;
+    case 'send':
+      var it=S.items.filter(function(x){return x.id===+ds.id;})[0];
+      it.offer={to:ds.to,st:'pending',at:nowStr()};flash('ok','Offer sent to '+ds.to+'. It stays Pending until they respond.');render();return;
+    case 'cancel':
+      var c=S.items.filter(function(x){return x.id===+ds.id;})[0];c.offer.st='cancelled';flash('ok','Offer cancelled. You can send a new offer.');render();return;
+    case 'decline':
+      var d=S.items.filter(function(x){return x.id===+ds.id;})[0];d.offer.st='cancelled';flash('ok','Replacement not confirmed. No assignment was published and the shortage stays visible.');render();return;
+    case 'confirm':
+      var k=S.items.filter(function(x){return x.id===+ds.id;})[0];applyReplacement(k);flash('ok','Replacement confirmed and published as version '+S.ver+'. '+k.offer.to+' must acknowledge the update.');render();return;
+    case 'offer':
+      var o=S.items.filter(function(x){return x.id===+ds.id;})[0];o.offer.st=ds.r;
+      flash(ds.r==='accepted'?'ok':'info',ds.r==='accepted'?'You accepted the offer. The Manager still has to confirm it.':'You declined the offer.');render();return;
+  }
+}
+function showErr(id,msg,input){var e=document.getElementById(id);if(!e)return;e.textContent=msg;e.hidden=false;if(input)input.setAttribute('aria-invalid','true');}
+function clearErr(ids){ids.forEach(function(i){var e=document.getElementById(i);if(e){e.hidden=true;e.textContent='';}});}
+function form(name,f){
+  if(name==='login'){
+    var em=document.getElementById('email'), pw=document.getElementById('pw'), box=document.getElementById('login-err');
+    clearErr(['email-err','pw-err','login-err']);em.removeAttribute('aria-invalid');pw.removeAttribute('aria-invalid');
+    if(S.failed>=5){box.textContent='Too many failed attempts. Try again in 15 minutes.';box.hidden=false;return;}
+    var v=em.value.trim();
+    if(!v||!/^\S+@\S+\.\S+$/.test(v)){showErr('email-err',v?'Enter a valid email address, for example name@factory.example.':'Enter your email address.',em);em.focus();return;}
+    if(!pw.value){showErr('pw-err','Enter your password.',pw);pw.focus();return;}
+    var u=USERS[v.toLowerCase()];
+    if(!u||pw.value!==PASSWORD){S.failed++;
+      box.textContent=S.failed>=5?'Too many failed attempts. Try again in 15 minutes.':'Invalid email or password. Please try again.';box.hidden=false;pw.value='';pw.focus();return;}
+    S.failed=0;S.user=u;S.week=1;S.screen=HOME[u.role];S.flash=null;render(true);announce('Logged in as '+u.name+', '+u.role+'.');return;
+  }
+  if(name==='ack'){
+    var cb=document.getElementById('reviewed');clearErr(['ack-err']);
+    if(!cb.checked){showErr('ack-err','Confirm that you have reviewed the changes before you acknowledge.',null);cb.focus();return;}
+    S.anAck='ack';S.anAckAt='28 Oct 16:30';var r=S.team.filter(function(t){return t.n==='Nguyen Van An';})[0];r.ack='28 Oct 16:30';
+    S.screen='schedule';flash('ok','Acknowledged. The Manager can see that you have seen version '+S.ver+'.');render(true);return;
+  }
+  if(name==='report'){
+    var sel=document.getElementById('shift');clearErr(['shift-err']);sel.removeAttribute('aria-invalid');
+    if(!sel.value){showErr('shift-err','Select the shift you cannot attend.',sel);sel.focus();return;}
+    var di=+sel.value, row0=S.an[di];
+    var dup=S.items.some(function(x){return x.name==='Nguyen Van An'&&x.d===di&&!x.resolved;});
+    if(dup){showErr('shift-err','You already reported this shift. The Manager is arranging coverage.',sel);sel.focus();return;}
+    S.items.push({id:S.nextId++,name:'Nguyen Van An',d:di,c:row0.c,pos:row0.pos,kind:'Absence reported '+nowStr(),reason:document.getElementById('reason').value,resolved:false,offer:null});
+    S.reports.unshift({shift:dayLabel(di)+' · '+lab(row0.c),at:nowStr(),st:'Coverage in progress'});
+    flash('ok','Absence reported for '+dayLabel(di)+'. Your Manager can now arrange a replacement. Your shift stays assigned until then.');render();return;
+  }
+  if(name==='assign'){S.draft.unc=0;flash('ok','Position filled. The draft now has no uncovered positions.');render();return;}
+  if(name==='noshow'){
+    var emp=document.getElementById('ns-emp').value,dd=+document.getElementById('ns-day').value,cc=document.getElementById('ns-sh').value;
+    var item={id:S.nextId++,name:emp,d:dd,c:cc,pos:'Machine Operator',kind:'No-show recorded '+nowStr(),reason:'',resolved:false,offer:null};
+    S.items.push(item);S.selItem=item.id;S.noShowOpen=false;flash('ok','No-show recorded for '+emp+'. Choose a replacement below.');render();return;
+  }
+}
+document.addEventListener('click',function(e){
+  var b=e.target.closest('[data-act]');if(!b)return;
+  if(b.tagName==='INPUT'){act(b.dataset.act,b.dataset,b);return;}
+  if(b.getAttribute('aria-disabled')==='true'&&b.dataset.act!=='noop')return;
+  act(b.dataset.act,b.dataset,b);
+});
+document.addEventListener('submit',function(e){var f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();form(f.dataset.form,f);});
+document.getElementById('skip').addEventListener('click',function(e){e.preventDefault();var m=document.getElementById('main'),h=m&&m.querySelector('h1');(h||m).setAttribute('tabindex','-1');(h||m).focus();});
+render(false);
+})();
+</script>
+
+</body></html>
