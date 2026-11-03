@@ -10,7 +10,7 @@
 
 This deliverable-oriented WBS uses four levels: **0.0 Project → 1.0–7.0 Phase/Workstream → x.y Deliverable Group → x.y.z Work Package**. Work-package IDs match PA1 Section 4.3 (Estimation) and should be reused in GitHub Projects and the Gantt chart.
 
-**MVP scope:** F01 Sign-in and role-based access; F02 Shift assignment; F03 Schedule views; F04 Swap requests; F05 Co-worker response; F06 Manager decision and atomic shift exchange. **F07** detailed decision history and **F08** email notifications are optional, not required implementation deliverables.
+**MVP scope:** F01 Authentication and role-based access, F02 Constraint-based automatic scheduling, F03 Published roster and acknowledgement, and F04 Absence reporting and Manager-coordinated coverage for a single production team. F04 includes mid-shift replacement from Manager confirmation through the end of the shift (PA2 FR-18, UC-09, AC-41).
 
 **Tech stack:** React, Node.js/Express, Supabase Auth and Supabase Database (PostgreSQL).
 
@@ -51,7 +51,7 @@ This deliverable-oriented WBS uses four levels: **0.0 Project → 1.0–7.0 Phas
 
 ### 2.1 Software Requirements
 
-- **2.1.1** Functional requirements F01–F06 (FRs)
+- **2.1.1** Functional requirements F01–F04 (FRs)
 - **2.1.2** NFRs, business rules & acceptance criteria
 
 ### 2.2 Use Case Modeling
@@ -102,11 +102,11 @@ This deliverable-oriented WBS uses four levels: **0.0 Project → 1.0–7.0 Phas
 ### 4.2 Test Design
 
 - **4.2.1** Equivalence Partitioning and BVA design
-- **4.2.2** Decision tables for shift/swap constraints
+- **4.2.2** Decision tables for scheduling and absence/coverage rules
 
 ### 4.3 Test Cases & Coverage
 
-- **4.3.1** Detailed test cases for F01–F06
+- **4.3.1** Detailed test cases for F01–F04, including mid-shift coverage
 - **4.3.2** Requirements–test traceability review
 
 ### 4.4 PA Submission
@@ -118,20 +118,21 @@ This deliverable-oriented WBS uses four levels: **0.0 Project → 1.0–7.0 Phas
 ### 5.1 Development Foundation
 
 - **5.1.1** Create React/Express project and local dev config
-- **5.1.2** Supabase PostgreSQL schema, migrations, user profiles and test data
+- **5.1.2** Supabase schema, migrations, employee profiles, skills, availability, shift data and test data
 
 ### 5.2 Authentication & Shift Management
 
-- **5.2.1** Supabase Auth integration, JWT verification and role-based authorization (F01)
-- **5.2.2** Shift assignment + overlap validation (F02)
-- **5.2.3** Employee/manager roster views (F03)
+- **5.2.1** Supabase Auth, JWT verification and Employee/Manager/Boss authorization (F01)
+- **5.2.2** Constraint-based automatic scheduling and fairness scoring (F02)
+- **5.2.3** Published roster, change indicators, acknowledgement and Boss overview (F03)
+- **5.2.4** Manager roster preview, manual adjustment and publishing (F02)
 
-### 5.3 Shift Swap Workflow
+### 5.3 Absence Reporting & Shift Coverage
 
-- **5.3.1** Create and validate swap requests (F04)
-- **5.3.2** Co-worker accept/reject response (F05)
-- **5.3.3** Manager approval, recheck & atomic exchange (F06)
-- **5.3.4** Integrate swap workflow UI with REST API
+- **5.3.1** Employee absence submission and Manager no-show recording (F04)
+- **5.3.2** Replacement eligibility checks and substitute acceptance (F04)
+- **5.3.3** Manager confirmation and atomic roster update, including mid-shift coverage (F04)
+- **5.3.4** Integrate absence/coverage workflow UI with REST API (F04)
 
 ### 5.4 Software Verification
 
