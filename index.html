@@ -1,4 +1,4 @@
-﻿<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>ShiftManager Prototype</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
@@ -88,6 +88,8 @@ input[aria-invalid="true"],select[aria-invalid="true"]{border-color:var(--err-fg
 .cellbtn{font:inherit;font-weight:700;width:100%;background:var(--surface);color:var(--text);border:2px solid transparent;padding:6px 4px;cursor:pointer;border-radius:4px}
 .cellbtn[aria-pressed="true"]{background:var(--sel);border-color:var(--primary)}
 td.g{padding:2px;text-align:center}
+td.g select{font-size:13px;padding:7px 2px}
+td.g input[type=number]{font-size:14px}
 .item{display:block;width:100%;text-align:left;font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:10px;cursor:pointer}
 .item[aria-pressed="true"]{outline:3px solid var(--primary);outline-offset:-1px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:14px}
@@ -114,20 +116,21 @@ s{opacity:.85}
 <script>
 (function(){
 'use strict';
+document.documentElement.lang='en';
 /* ---------------------------------------------------------------- data */
 var DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 var DATES=['26 Oct','27 Oct','28 Oct','29 Oct','30 Oct','31 Oct','1 Nov'];
-var SH={M:{n:'Morning',t:'06:00ΓÇô14:00'},A:{n:'Afternoon',t:'14:00ΓÇô22:00'},N:{n:'Night',t:'22:00ΓÇô06:00'}};
+var SH={M:{n:'Morning',t:'06:00–14:00'},A:{n:'Afternoon',t:'14:00–22:00'},N:{n:'Night',t:'22:00–06:00'}};
 var USERS={
   'an.nguyen@factory.example':{name:'Nguyen Van An',role:'Employee'},
   'quan.tran@factory.example':{name:'Tran Minh Quan',role:'Manager'},
   'bao.ly@factory.example':{name:'Ly Quoc Bao',role:'Boss'}};
 var PASSWORD='demo1234';
-var NAV={Employee:[['schedule','My Schedule'],['report','Report Absence']],
-         Manager:[['scheduling','Weekly Scheduling'],['team','Team Schedule'],['coverage','Absence & Coverage']],
+var NAV={Employee:[['schedule','My Schedule'],['availability','Availability & Overtime'],['report','Report Absence']],
+         Manager:[['accounts','Employee Accounts'],['staffing','Staffing & Overtime'],['scheduling','Weekly Scheduling'],['team','Team Schedule'],['coverage','Absence & Coverage']],
          Boss:[['overview','Staffing Overview']]};
 var HOME={Employee:'schedule',Manager:'scheduling',Boss:'overview'};
-var WEEKS=['19 Oct ΓÇô 25 Oct 2026','26 Oct ΓÇô 1 Nov 2026','2 Nov ΓÇô 8 Nov 2026'];
+var WEEKS=['19 Oct – 25 Oct 2026','26 Oct – 1 Nov 2026','2 Nov – 8 Nov 2026'];
 var REQ={M:[4,4,4,4,4,3,3],A:[3,3,3,3,3,2,2],N:[2,2,2,2,2,1,1]};
 var NIGHTS={'Nguyen Van An':2,'Tran Thi Binh':4,'Le Van Cuong':1,'Pham Thi Dung':3,'Hoang Van Em':6,'Vo Thi Phuong':3,'Dang Van Giang':2,'Do Van Hieu':2,'Bui Thi Hoa':2,'Truong Van Khoa':3,'Ngo Thi Lan':2,'Dinh Van Minh':5};
 
@@ -135,7 +138,10 @@ function row(c,ch,prev,pos){return {c:c,ch:ch||null,prev:prev||'',pos:pos||'Mach
 var S={
   user:null, screen:'login', flash:null, failed:0,
   week:1, open:{}, ver:3, pub:'25 Oct 2026, 16:30', anAck:'pending', anAckAt:'',
-  an:[row('M'),row('M','new','Not assigned'),row('A','chg','Morning 06:00ΓÇô14:00'),row('-'),row('M'),row('M','can','Morning 06:00ΓÇô14:00'),row('-')],
+  lastAck:'version 2 · 18 Oct 2026, 17:10', sup:0, anNote:'', simFail:false, simStale:false,
+  avLocked:false, avWork:null, stTarget:'default', stWork:null, stErr:null, stDiscard:false,
+  crit:{M:false,A:false,N:true}, closed:{M:false,A:false,N:false},
+  an:[row('M'),row('M','new','Not assigned'),row('A','chg','Morning 06:00–14:00'),row('-'),row('M'),row('M','can','Morning 06:00–14:00'),row('-')],
   team:[
     {n:'Nguyen Van An',codes:null,ack:'pending'},
     {n:'Tran Thi Binh',codes:'MMMMM--',ack:'25 Oct 17:02'},
@@ -144,18 +150,25 @@ var S={
     {n:'Hoang Van Em',codes:'NNNNN--',ack:'pending'},
     {n:'Vo Thi Phuong',codes:'-MMMMM-',ack:'25 Oct 17:40'},
     {n:'Dang Van Giang',codes:'AA-AAA-',ack:'pending'},
-    {n:'Do Van Hieu',codes:'A--A-AA',ack:'25 Oct 19:12'},
+    {n:'Do Van Hieu',codes:'A--A-AA',ack:'notreq'},
     {n:'Bui Thi Hoa',codes:'MMMMM--',ack:'25 Oct 17:05'},
-    {n:'Truong Van Khoa',codes:'-AAAAA-',ack:'25 Oct 17:58'},
+    {n:'Truong Van Khoa',codes:'-AAAAA-',ack:'notreq'},
     {n:'Ngo Thi Lan',codes:'AAA-AA-',ack:'25 Oct 18:20'},
     {n:'Dinh Van Minh',codes:'NN-NNN-',ack:'25 Oct 17:31'}],
   pendingOnly:false,
   items:[
-    {id:1,name:'Le Van Cuong',d:3,c:'M',pos:'Machine Operator',kind:'Absence reported 28 Oct 07:40',reason:'Illness',resolved:false,offer:{to:'Nguyen Van An',st:'pending',at:'28 Oct 08:05'}},
+    {id:1,name:'Le Van Cuong',d:3,c:'M',pos:'Machine Operator',kind:'Absence reported 29 Oct 05:50',reason:'Illness',resolved:false,offer:{to:'Nguyen Van An',st:'pending',at:'29 Oct 06:15',ot:true}},
     {id:2,name:'Pham Thi Dung',d:2,c:'A',pos:'Packer',kind:'No-show recorded 28 Oct 14:20',reason:'',resolved:false,offer:null},
-    {id:3,name:'Vo Thi Phuong',d:1,c:'M',pos:'Packer',kind:'Absence reported 26 Oct 20:05',reason:'Family matter',resolved:true,offer:{to:'Do Van Hieu',st:'accepted',at:'26 Oct 21:10'}}],
-  nextId:4, selItem:1, noShowOpen:false,
-  reports:[{shift:'Tue 20 Oct ┬╖ Afternoon 14:00ΓÇô22:00',at:'19 Oct 20:10',st:'Resolved ΓÇô covered'}],
+    {id:3,name:'Vo Thi Phuong',d:1,c:'M',pos:'Packer',kind:'Absence reported 26 Oct 20:05',reason:'Family matter',resolved:true,offer:{to:'Do Van Hieu',st:'accepted',at:'26 Oct 21:10'}},
+    {id:4,name:'Dang Van Giang',d:1,c:'A',pos:'Machine Operator',kind:'Absence reported 27 Oct 11:30',reason:'Transport problem',resolved:false,offer:{to:'Nguyen Van An',st:'expired',at:'27 Oct 11:40'}}],
+  nextId:5, selItem:1, noShowOpen:false,
+  ot:[
+    {id:1,d:5,from:'14:00',to:'18:00',loc:'Packing area B',duties:'Pack and label outgoing orders',note:'Compensation follows company overtime policy (informational note only).',closed:false,published:false,
+     su:[{n:'Do Van Hieu',st:'pending',elig:'Eligible'},{n:'Bui Thi Hoa',st:'pending',elig:'Not eligible: rest-time rule'}]},
+    {id:2,d:6,from:'06:00',to:'10:00',loc:'Line 2',duties:'Machine set-up and quality checks',note:'Compensation follows company overtime policy (informational note only).',closed:false,published:false,su:[]}],
+  otNext:3, otConsent:0, otErr:'', otPostErr:null,
+  acc:[], accMode:'list', accEdit:'', accErr:null, accConfirm:null,
+  reports:[{shift:'Tue 20 Oct · Afternoon 14:00–22:00',at:'19 Oct 20:10',st:'Resolved – covered'}],
   draft:null, sel:{s:'N',d:3}
 };
 var BASE_UNCOVERED=[{d:3,c:'N',pos:'QC Inspector'}];
@@ -166,13 +179,14 @@ function announce(m){live.textContent='';setTimeout(function(){live.textContent=
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function flash(t,m){S.flash={t:t,m:m};announce(m);}
 function bd(cls,txt){return '<span class="bd '+cls+'">'+txt+'</span>';}
-function chBadge(ch){return ch==='new'?bd('new','+ NEW'):ch==='chg'?bd('chg','Γ£Ä CHANGED'):ch==='can'?bd('can','├ù CANCELLED'):'ΓÇö';}
+function chBadge(ch){return ch==='new'?bd('new','+ NEW'):ch==='chg'?bd('chg','✎ CHANGED'):ch==='can'?bd('can','× CANCELLED'):'—';}
 function lab(c){return SH[c].n+' '+SH[c].t;}
 function dayLabel(d){return DAYS[d]+' '+DATES[d];}
 function status(it){
   if(it.resolved) return ['Resolved','ack'];
+  if(isEnded(it)) return ['Shift ended','neu'];
   if(it.offer&&it.offer.st==='pending') return ['Offer pending','pen'];
-  if(it.offer&&it.offer.st==='accepted') return ['Accepted ΓÇô awaiting confirmation','chg'];
+  if(it.offer&&it.offer.st==='accepted') return ['Accepted – awaiting confirmation','chg'];
   return ['Unresolved','can'];
 }
 function anCodes(){return S.an.map(function(r){return r.ch==='can'?'-':r.c;});}
@@ -189,11 +203,61 @@ function hoursOf(t){return codesOf(t).filter(function(c){return c==='M'||c==='A'
 function anHours(){return S.an.filter(function(r){return r.c!=='-'&&r.ch!=='can';}).length*8;}
 function uncovered(){
   var list=BASE_UNCOVERED.map(function(u){return {d:u.d,c:u.c,pos:u.pos,src:'Published schedule'};});
-  S.items.forEach(function(it){if(!it.resolved)list.push({d:it.d,c:it.c,pos:it.pos,src:it.name+' ('+(it.kind.indexOf('No-show')===0?'no-show':'absence')+')'});});
+  S.items.forEach(function(it){if(!it.resolved&&!isEnded(it))list.push({d:it.d,c:it.c,pos:it.pos,src:it.name+' ('+(it.kind.indexOf('No-show')===0?'no-show':'absence')+')'});});
   return list;
 }
 function current(){return S.items.filter(function(i){return i.id===S.selItem;})[0]||null;}
-function nowStr(){return '28 Oct 16:20';}
+function nowStr(){return '29 Oct 06:30';}
+function isEnded(it){return it.d<3;}
+function inProg(it){return it.d===3&&it.c==='M';}
+var CONTR={'Nguyen Van An':32,'Do Van Hieu':40,'Vo Thi Phuong':40};
+var REM={from:'06:30',to:'14:00',hrs:7.5,len:'7 h 30 min',eff:'06:35–14:00',efflen:'7 h 25 min'};
+var OT_TERMS='Overtime is voluntary and needs your explicit consent. It applies to work beyond your contracted weekly hours. Compensation follows company policy; the note is informational and ShiftManager does not calculate pay.';
+function covHrs(it){return inProg(it)?REM.hrs:8;}
+function covText(it,eff){
+  if(inProg(it)) return eff?REM.eff+' ('+REM.efflen+')':REM.from+'–'+REM.to+' ('+REM.len+' remaining)';
+  return SH[it.c].t+' (8 h)';}
+function hoursName(n){var t=S.team.filter(function(x){return x.n===n;})[0];return t?hoursOf(t):0;}
+function isOT(n,it){var c=CONTR[n];return c?(hoursName(n)+covHrs(it)>c):false;}
+var OTD=['2 Nov','3 Nov','4 Nov','5 Nov','6 Nov','7 Nov','8 Nov'];
+function otDay(d){return DAYS[d]+' '+OTD[d];}
+function hm(t){var p=t.split(':');return (+p[0])*60+(+p[1]);}
+function otLen(o){var m=hm(o.to)-hm(o.from);return (m/60)+' h';}
+function otIv(o){return o.from+'–'+o.to+' ('+otLen(o)+')';}
+function otSu(o,n){return o.su.filter(function(x){return x.n===n;})[0]||null;}
+function publishOT(){S.ot.forEach(function(o){o.published=o.su.some(function(x){return x.st==='approved';});});}
+function otApprovalCard(){
+  var rows='';
+  S.ot.forEach(function(o){
+    if(!o.su.length){rows+='<tr><td>'+otDay(o.d)+' · '+otIv(o)+'<br><span class="sm muted">'+esc(o.loc)+'</span></td><td colspan="4" class="muted">No sign-ups yet</td></tr>';return;}
+    o.su.forEach(function(x,i){
+      var elig=x.elig==='Eligible'?bd('ack','Eligible'):bd('can','⚠ '+esc(x.elig));
+      var st=x.st==='pending'?bd('pen','Awaiting approval'):x.st==='approved'?bd('ack',S.draft&&S.draft.published?'Approved – published':'Approved'):bd('neu','Not approved');
+      var act='—';
+      if(x.st==='pending'&&!(S.draft&&S.draft.published)){
+        act=(x.elig==='Eligible'?'<button type="button" class="btn p s" data-act="otdec" data-o="'+o.id+'" data-n="'+esc(x.n)+'" data-r="approved" data-fk="otap-'+o.id+'-'+i+'" aria-label="Approve '+esc(x.n)+' for overtime on '+otDay(o.d)+'">Approve</button>':
+          '<button type="button" class="btn s" aria-disabled="true" data-act="noop" data-why="'+esc(x.n)+' is not eligible ('+esc(x.elig)+') and cannot be approved." data-fk="otap-'+o.id+'-'+i+'" aria-label="Approve '+esc(x.n)+' (unavailable: not eligible)">Approve</button>')+
+          ' <button type="button" class="btn s" data-act="otdec" data-o="'+o.id+'" data-n="'+esc(x.n)+'" data-r="rejected" data-fk="otno-'+o.id+'-'+i+'" aria-label="Do not approve '+esc(x.n)+' for overtime on '+otDay(o.d)+'">Do not approve</button>';}
+      rows+='<tr><td>'+(i===0?otDay(o.d)+' · '+otIv(o)+'<br><span class="sm muted">'+esc(o.loc)+'</span>':'')+'</td><td>'+esc(x.n)+'</td><td>'+elig+'</td><td>'+st+'</td><td>'+act+'</td></tr>';});});
+  return '<div class="card flush scroll" role="region" aria-label="Overtime sign-ups" tabindex="0"><h2>Overtime sign-ups (check eligibility and approve before publishing)</h2><table style="margin-top:8px"><caption class="sr">Overtime sign-ups with eligibility and approval status</caption><thead><tr><th scope="col">Overtime shift</th><th scope="col">Employee</th><th scope="col">Eligibility</th><th scope="col">Status</th><th scope="col">Decision</th></tr></thead><tbody>'+rows+'</tbody></table><p class="sm muted" style="padding:6px 16px;margin:0">Employees give consent when they sign up. Only eligible, approved employees are published with the schedule.</p></div>';
+}
+function ackCounts(){
+  var req=S.team.filter(function(t){return t.ack!=='notreq';});
+  var pend=req.filter(function(t){return t.ack==='pending';}).length;
+  return {req:req.length,pend:pend,done:req.length-pend,notreq:S.team.length-req.length,sup:S.sup};
+}
+function copyObj(o){var r={};for(var k in o)r[k]=o[k];return r;}
+var AVBASE={};DAYS.forEach(function(d,i){['M','A','N'].forEach(function(c){AVBASE[i+c]=(i===6?'U':(i===5&&c==='N'?'P':'A'));});});
+S.avSaved=copyObj(AVBASE);
+var POSLIST=['Machine Operator','QC Inspector','Packer'];
+var APOS={'Nguyen Van An':'Machine Operator','Tran Thi Binh':'QC Inspector','Le Van Cuong':'Machine Operator','Pham Thi Dung':'Packer','Hoang Van Em':'Machine Operator','Vo Thi Phuong':'Packer','Dang Van Giang':'Machine Operator','Do Van Hieu':'QC Inspector','Bui Thi Hoa':'Machine Operator','Truong Van Khoa':'Packer','Ngo Thi Lan':'QC Inspector','Dinh Van Minh':'Machine Operator'};
+function mailOf(n){var p=n.toLowerCase().split(' ');return p[p.length-1]+'.'+p[0]+'@factory.example';}
+S.acc=S.team.map(function(t){return {n:t.n,email:mailOf(t.n),pos:APOS[t.n]||'Machine Operator',active:true};});
+S.acc.push({n:'Pham Van Nam',email:mailOf('Pham Van Nam'),pos:'Packer',active:false});
+var POS=['Machine Operator','QC Inspector'];
+function stDef(){var o={};['M','A','N'].forEach(function(c){POS.forEach(function(p,pi){for(var d=0;d<7;d++){o[c+'|'+pi+'|'+d]=(pi===0?REQ[c][d]-1:1);}});});return o;}
+S.staffDef=stDef();S.staffWeek=stDef();S.staffPrev=stDef();
+for(var _d=0;_d<5;_d++){S.staffPrev['M|1|'+_d]=2;}
 
 /* ---------------------------------------------------------------- routing / render */
 function go(screen){S.screen=screen;S.flash=null;S.open={};render(true);}
@@ -202,11 +266,12 @@ function render(focusHeading){
   var h='';
   if(S.user) h+=header();
   else h+='<header class="hdr"><div class="wrap"><div class="logo">ShiftManager<span class="proto-tag">Prototype</span></div></div></header>';
-  h+='<main id="main" tabindex="-1"><div class="wrap">'+(S.flash?'<div class="alert '+S.flash.t+'" role="status">'+esc(S.flash.m)+'</div>':'')+SCREENS[S.screen]()+'</div></main>';
+  h+='<main id="main" tabindex="-1"><div class="wrap">'+(S.flash?'<div class="alert '+S.flash.t+'" role="'+(S.flash.t==='err'?'alert':'status')+'">'+esc(S.flash.m)+'</div>':'')+SCREENS[S.screen]()+'</div></main>';
   app.innerHTML=h;
   var el=null;
   if(!focusHeading&&fk) el=app.querySelector('[data-fk="'+fk+'"]');
   if(!el&&focusHeading){el=app.querySelector('h1');if(el){el.setAttribute('tabindex','-1');}}
+  if(!el&&!focusHeading&&prev&&prev!==document.body&&!document.contains(prev)){el=document.getElementById('main');}
   if(el) el.focus();
   if(focusHeading) window.scrollTo(0,0);
 }
@@ -215,12 +280,12 @@ function header(){
     return '<li><button type="button" data-act="go" data-to="'+n[0]+'" data-fk="nav-'+n[0]+'"'+(S.screen===n[0]?' aria-current="page"':'')+'>'+n[1]+'</button></li>';}).join('');
   return '<header class="hdr"><div class="wrap"><div class="logo">ShiftManager<span class="proto-tag">Prototype</span></div>'+
     '<nav aria-label="Main"><ul>'+nav+'</ul></nav>'+
-    '<div class="user"><span><strong>'+S.user.name+'</strong> ┬╖ '+S.user.role+'</span><button type="button" class="btn" data-act="logout" data-fk="logout">Log out</button></div></div></header>';
+    '<div class="user"><span><strong>'+S.user.name+'</strong> · '+S.user.role+'</span><button type="button" class="btn" data-act="logout" data-fk="logout">Log out</button></div></div></header>';
 }
 function weekBar(label,idKey){
-  return '<div class="row"><button type="button" class="btn s" data-act="week" data-dir="-1" data-fk="'+idKey+'-prev" aria-label="Previous week">ΓÇ╣ Previous</button>'+
+  return '<div class="row"><button type="button" class="btn s" data-act="week" data-dir="-1" data-fk="'+idKey+'-prev" aria-label="Previous week">‹ Previous</button>'+
     '<strong aria-live="polite">'+label+'</strong>'+
-    '<button type="button" class="btn s" data-act="week" data-dir="1" data-fk="'+idKey+'-next" aria-label="Next week">Next ΓÇ║</button></div>';
+    '<button type="button" class="btn s" data-act="week" data-dir="1" data-fk="'+idKey+'-next" aria-label="Next week">Next ›</button></div>';
 }
 
 /* ---------------------------------------------------------------- screens */
@@ -249,7 +314,7 @@ SCREENS.login=function(){
 SCREENS.schedule=function(){
   var w=S.week, h='<h1>My Schedule</h1>';
   var pendingBanner=(w===1&&S.anAck==='pending')?
-    '<div class="alert info"><div class="row"><span><strong>1 schedule update is waiting for your acknowledgement.</strong> Version '+S.ver+' ┬╖ published '+S.pub+'</span>'+
+    '<div class="alert info"><div class="row"><span><strong>1 schedule update is waiting for your acknowledgement.</strong> Version '+S.ver+' · published '+S.pub+'</span>'+
     '<button type="button" class="btn p s" data-act="go" data-to="ack" data-fk="review">Review &amp; acknowledge</button></div></div>':'';
   h+=pendingBanner;
   h+='<div class="row sb" style="margin-bottom:10px">'+weekBar(WEEKS[w],'wk')+'</div>';
@@ -258,25 +323,25 @@ SCREENS.schedule=function(){
   }
   if(w===0){
     var past=['M','M','M','M','M','-','-'];
-    h+='<div class="card" style="padding:9px 14px"><span class="sm">Official version <strong>2</strong> ┬╖ published 18 Oct 2026, 17:10 by Tran Minh Quan</span> &nbsp; Acknowledgement: '+bd('ack','Acknowledged')+'</div>';
+    h+='<div class="card" style="padding:9px 14px"><span class="sm">Official version <strong>2</strong> · published 18 Oct 2026, 17:10 by Tran Minh Quan</span> &nbsp; Acknowledgement: '+bd('ack','Acknowledged')+'</div>';
     var rows=past.map(function(c,i){var d=['19 Oct','20 Oct','21 Oct','22 Oct','23 Oct','24 Oct','25 Oct'][i];
-      return c==='-'?'<tr><td>'+DAYS[i]+' '+d+'</td><td class="muted">Day off</td><td>ΓÇö</td><td>ΓÇö</td><td>ΓÇö</td></tr>':
-      '<tr><td>'+DAYS[i]+' '+d+'</td><td>Morning</td><td>06:00ΓÇô14:00</td><td>Machine Operator</td><td>ΓÇö</td></tr>';}).join('');
+      return c==='-'?'<tr><td>'+DAYS[i]+' '+d+'</td><td class="muted">Day off</td><td>—</td><td>—</td><td>—</td></tr>':
+      '<tr><td>'+DAYS[i]+' '+d+'</td><td>Morning</td><td>06:00–14:00</td><td>Machine Operator</td><td>—</td></tr>';}).join('');
     return h+'<div class="card flush scroll" role="region" aria-label="Schedule table" tabindex="0"><table><caption class="sr">Assigned shifts, week of 19 October</caption><thead><tr><th scope="col">Date</th><th scope="col">Shift</th><th scope="col">Time</th><th scope="col">Position</th><th scope="col">Change</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
-      '<p class="sm muted">Scheduled hours this week: <strong>40 h</strong> ┬╖ Night shifts: <strong>0</strong></p>';
+      '<p class="sm muted">Scheduled hours this week: <strong>40 h</strong> · Night shifts: <strong>0</strong></p>';
   }
-  var ackTxt=S.anAck==='pending'?bd('pen','Pending'):bd('ack','Acknowledged')+(S.anAckAt?' <span class="sm muted">'+S.anAckAt+'</span>':'');
-  h+='<div class="card" style="padding:9px 14px"><div class="row sb"><span class="sm">Official version <strong>'+S.ver+'</strong> ┬╖ published '+S.pub+' by Tran Minh Quan</span><span class="sm">Acknowledgement: '+ackTxt+'</span></div></div>';
+  var ackTxt=S.anAck==='pending'?bd('pen','Pending'):S.anAck==='notreq'?bd('neu','Not required'):bd('ack','Acknowledged')+(S.anAckAt?' <span class="sm muted">'+S.anAckAt+'</span>':'');
+  h+='<div class="card" style="padding:9px 14px"><div class="row sb"><span class="sm">Official version <strong>'+S.ver+'</strong> · published '+S.pub+' by Tran Minh Quan</span><span class="sm">Acknowledgement: '+ackTxt+'</span></div></div>';
   var trs=S.an.map(function(r,i){
     var dl=DAYS[i]+' '+DATES[i];
-    if(r.c==='-') return '<tr><td>'+dl+'</td><td class="muted">Day off</td><td>ΓÇö</td><td>ΓÇö</td><td>ΓÇö</td></tr>';
+    if(r.c==='-') return '<tr><td>'+dl+'</td><td class="muted">Day off</td><td>—</td><td>—</td><td>—</td></tr>';
     var cancelled=r.ch==='can', wrap=function(t){return cancelled?'<s>'+t+'</s>':t;};
-    var chg=r.ch?chBadge(r.ch)+' <button type="button" class="btn s" data-act="toggle" data-i="'+i+'" data-fk="det-'+i+'" aria-expanded="'+(!!S.open[i])+'" aria-label="Details for '+dl+'">Details</button>':'ΓÇö';
-    var out='<tr><td>'+dl+'</td><td>'+wrap(SH[r.c].n)+'</td><td>'+wrap(SH[r.c].t)+'</td><td>'+wrap(r.pos)+'</td><td>'+chg+'</td></tr>';
-    if(S.open[i]) out+='<tr><td colspan="5" style="background:var(--surface2)"><strong>Previous:</strong> '+(r.prev||'ΓÇö')+' &nbsp;ΓåÆ&nbsp; <strong>Current:</strong> '+(cancelled?'Removed':lab(r.c)+', '+r.pos)+'</td></tr>';
+    var chg=r.ch?chBadge(r.ch)+' <button type="button" class="btn s" data-act="toggle" data-i="'+i+'" data-fk="det-'+i+'" aria-expanded="'+(!!S.open[i])+'" aria-label="Details for '+dl+'">Details</button>':'—';
+    var out='<tr><td>'+dl+'</td><td>'+wrap(SH[r.c].n)+'</td><td>'+wrap(r.eff||SH[r.c].t)+(r.eff?' <span class="sm muted">(partial shift)</span>':'')+'</td><td>'+wrap(r.pos)+'</td><td>'+chg+'</td></tr>';
+    if(S.open[i]) out+='<tr><td colspan="5" style="background:var(--surface2)"><strong>Previous:</strong> '+(r.prev||'—')+' &nbsp;→&nbsp; <strong>Current:</strong> '+(cancelled?'Removed':lab(r.c)+', '+r.pos)+'</td></tr>';
     return out;}).join('');
   h+='<div class="card flush scroll" role="region" aria-label="Schedule table" tabindex="0"><table><caption class="sr">Assigned shifts, week of 26 October</caption><thead><tr><th scope="col">Date</th><th scope="col">Shift</th><th scope="col">Time</th><th scope="col">Position</th><th scope="col">Change</th></tr></thead><tbody>'+trs+'</tbody></table></div>';
-  h+='<p class="sm muted">Scheduled hours this week: <strong>'+anHours()+' h</strong> ┬╖ Night shifts: <strong>0</strong></p>';
+  h+='<p class="sm muted">Scheduled hours this week: <strong>'+anHours()+' h</strong> · Night shifts: <strong>0</strong>. Only updates that change your own assignments need your acknowledgement; changes to other employees do not reset your status.</p>';
   return h;
 };
 
@@ -286,9 +351,10 @@ function changeRows(){
 SCREENS.ack=function(){
   var ch=changeRows();
   var trs=ch.map(function(x){return '<tr><td>'+dayLabel(x.i)+'</td><td>'+(x.r.prev==='Not assigned'?'<span class="muted">Not assigned</span>':x.r.prev)+'</td><td>'+(x.r.ch==='can'?'<span class="muted">Removed</span>':lab(x.r.c)+', '+x.r.pos)+'</td><td>'+chBadge(x.r.ch)+'</td></tr>';}).join('');
-  return '<div class="row sb"><h1>Schedule update ΓÇô Version '+S.ver+'</h1><span>Status: '+(S.anAck==='pending'?bd('pen','Pending'):bd('ack','Acknowledged'))+'</span></div>'+
-  '<div class="card"><span class="sm">Week <strong>26 Oct ΓÇô 1 Nov 2026</strong> ┬╖ published '+S.pub+' by Tran Minh Quan ┬╖ '+ch.length+' change'+(ch.length===1?'':'s')+' affect'+(ch.length===1?'s':'')+' you</span></div>'+
-  '<div class="card flush scroll" role="region" aria-label="Changes table" tabindex="0"><table><caption class="sr">Changes in this update</caption><thead><tr><th scope="col">Date</th><th scope="col">Previous assignment</th><th scope="col">Current assignment</th><th scope="col">Change</th></tr></thead><tbody>'+trs+'</tbody></table></div>'+
+  var note=S.anNote&&S.anAck==='pending'?'<div class="alert warn" role="status"><strong>Updated summary.</strong> '+S.anNote+'</div>':'';
+  return '<div class="row sb"><h1>Schedule update – Version '+S.ver+'</h1><span>Status: '+(S.anAck==='pending'?bd('pen','Pending'):bd('ack','Acknowledged'))+'</span></div>'+note+
+  '<div class="card"><span class="sm">Applicable version <strong>'+S.ver+'</strong> · week <strong>26 Oct – 1 Nov 2026</strong> · published '+S.pub+' by Tran Minh Quan.<br>Cumulative changes since your last acknowledged schedule (<strong>'+S.lastAck+'</strong>): '+ch.length+' change'+(ch.length===1?'':'s')+' affect'+(ch.length===1?'s':'')+' you. Earlier intermediate versions stay available in the schedule history.</span></div>'+
+  '<div class="card flush scroll" role="region" aria-label="Changes table" tabindex="0"><table><caption class="sr">Cumulative changes in this update</caption><thead><tr><th scope="col">Date</th><th scope="col">Previous assignment</th><th scope="col">Current assignment</th><th scope="col">Change</th></tr></thead><tbody>'+trs+'</tbody></table></div>'+
   (S.anAck==='pending'?
   '<div class="card"><form data-form="ack" novalidate><label class="chk" for="reviewed"><input type="checkbox" id="reviewed" aria-describedby="ack-err"><span>I have reviewed the changes above.</span></label>'+
   '<div id="ack-err" class="err-t" hidden></div>'+
@@ -299,52 +365,58 @@ SCREENS.ack=function(){
 
 SCREENS.report=function(){
   var shifts=[];
-  S.an.forEach(function(r,i){if(r.c!=='-'&&r.ch!=='can'&&i>=2)shifts.push({i:i,t:dayLabel(i)+' ┬╖ '+lab(r.c)+' ┬╖ '+r.pos});});
-  var opts='<option value="">Select a shift</option>'+shifts.map(function(s){return '<option value="'+s.i+'">'+s.t+'</option>';}).join('');
+  S.an.forEach(function(r,i){if(r.c!=='-'&&r.ch!=='can'&&i>=3)shifts.push({i:i,t:dayLabel(i)+' · '+lab(r.c)+' · '+r.pos});});
+  var opts='<option value="">Select a shift</option>'+shifts.map(function(x){return '<option value="'+x.i+'">'+x.t+'</option>';}).join('');
   var offers=S.items.filter(function(it){return it.offer&&it.offer.to==='Nguyen Van An'&&!(it.resolved&&it.offer.st!=='accepted');});
   var oh=offers.length?offers.map(function(it){
-    var o=it.offer, d=dayLabel(it.d)+' ┬╖ '+lab(it.c);
-    var body='<strong>'+d+'</strong><br><span class="sm">'+it.pos+' ┬╖ covering an absent colleague</span><br><span class="sm muted">Offered '+o.at+' by Tran Minh Quan</span> ';
-    if(o.st==='pending') body+=bd('pen','Pending')+'<div class="row" style="margin-top:8px"><button type="button" class="btn p s" data-act="offer" data-id="'+it.id+'" data-r="accepted" data-fk="acc-'+it.id+'">Accept</button><button type="button" class="btn s" data-act="offer" data-id="'+it.id+'" data-r="rejected" data-fk="dec-'+it.id+'">Decline</button></div>';
-    else if(o.st==='accepted'&&!it.resolved) body+=bd('chg','Accepted')+'<p class="sm muted" style="margin:6px 0 0">Waiting for the Manager to confirm. Your schedule changes only after confirmation.</p>';
-    else if(o.st==='accepted'&&it.resolved) body+=bd('ack','Confirmed')+'<p class="sm muted" style="margin:6px 0 0">The Manager confirmed this replacement. See My Schedule.</p>';
+    var o=it.offer, d=dayLabel(it.d)+' · '+lab(it.c);
+    var body='<strong>'+d+'</strong>'+(inProg(it)?' '+bd('chg','In progress'):'')+'<br><span class="sm">'+it.pos+' · covering an absent colleague</span><br><span class="sm muted">Offered '+o.at+' by Tran Minh Quan</span> ';
+    if(o.st==='pending') body+=bd('pen','Pending')+'<p class="sm" style="margin:8px 0 0">'+(inProg(it)?'<strong>Remaining interval:</strong> ':'<strong>Interval:</strong> ')+covText(it,false)+'</p>'+
+      (o.ot?'<p class="sm" style="margin:6px 0 0"><strong>Overtime terms:</strong> '+OT_TERMS+'</p><label class="chk" for="otc-'+it.id+'" style="margin-top:6px"><input type="checkbox" id="otc-'+it.id+'" aria-describedby="otc-err-'+it.id+'"><span>I consent to work this overtime.</span></label><div id="otc-err-'+it.id+'" class="err-t" hidden></div>':'<p class="sm muted" style="margin:6px 0 0">No overtime: this is within your contracted hours.</p>')+
+      '<div class="row" style="margin-top:8px"><button type="button" class="btn p s" data-act="offer" data-id="'+it.id+'" data-r="accepted" data-fk="acc-'+it.id+'">Accept</button><button type="button" class="btn s" data-act="offer" data-id="'+it.id+'" data-r="rejected" data-fk="dec-'+it.id+'">Decline</button></div>';
+    else if(o.st==='expired') body+=bd('neu','Expired')+'<p class="sm muted" style="margin:6px 0 0">This offer expired and can no longer be accepted.</p>';
+    else if(o.st==='accepted'&&!it.resolved) body+=bd('chg','Accepted')+(o.ot?'<p class="sm muted" style="margin:6px 0 0">Overtime consent recorded '+(o.consentAt||'')+'.</p>':'')+'<p class="sm muted" style="margin:6px 0 0">Waiting for the Manager to confirm. Your schedule changes only after confirmation.</p>';
+    else if(o.st==='accepted'&&it.resolved) body+=bd('ack','Confirmed')+'<p class="sm" style="margin:6px 0 0"><strong>Effective interval:</strong> '+(it.effText||covText(it,true))+'</p><p class="sm muted" style="margin:4px 0 0">The Manager confirmed this replacement. See My Schedule.</p>';
     else if(o.st==='rejected') body+=bd('neu','Declined');
     else body+=bd('neu','Cancelled by Manager');
     return '<div class="card" style="margin:10px 0 0;background:var(--surface2)">'+body+'</div>';}).join(''):'<p class="muted" style="margin-top:8px">No replacement offers right now.</p>';
   var rep=S.reports.map(function(r){return '<tr><td>'+r.shift+'</td><td>'+r.at+'</td><td>'+bd(r.st.indexOf('Resolved')===0?'ack':'chg',r.st)+'</td></tr>';}).join('');
+  var rr=S.repErr||{};
   return '<h1>Report Absence</h1><div class="cols">'+
   '<div class="card"><h2>Report that you cannot attend a shift</h2><form data-form="report" novalidate>'+
-  '<div class="fld"><label for="shift">Assigned shift</label><select id="shift" aria-describedby="shift-err">'+opts+'</select><div id="shift-err" class="err-t" hidden></div></div>'+
+  '<div class="fld"><label for="shift">Assigned shift</label><select id="shift" aria-describedby="shift-err"'+(rr.shift?' aria-invalid="true"':'')+'>'+opts+'</select><div id="shift-err" class="err-t"'+(rr.shift?'':' hidden')+'>'+(rr.shift||'')+'</div></div>'+
   '<div class="fld"><label for="reason">Reason</label><select id="reason"><option>Illness</option><option>Family matter</option><option>Transport problem</option><option>Other</option></select></div>'+
-  '<div class="fld"><label for="note">Note for the Manager (optional)</label><textarea id="note"></textarea></div>'+
+  '<div class="fld"><label for="expl">Explanation for the Manager (required, 10–500 characters)</label><textarea id="expl" aria-describedby="expl-cnt expl-err"'+(rr.expl?' aria-invalid="true"':'')+'></textarea><div id="expl-cnt" class="sm muted">0 / 500</div><div id="expl-err" class="err-t"'+(rr.expl?'':' hidden')+'>'+(rr.expl||'')+'</div></div>'+
   '<button type="submit" class="btn p" data-fk="submit-rep">Submit report</button>'+
-  '<p class="muted sm" style="margin:10px 0 0">The Manager will look for a replacement. Your shift stays assigned to you until a replacement is confirmed.</p></form></div>'+
+  '<p class="muted sm" style="margin:10px 0 0">The Manager will look for a replacement. Submitting a report does not change the schedule by itself.</p></form></div>'+
   '<div class="card"><h2>Replacement offers for you</h2>'+oh+'<p class="sm muted" style="margin:10px 0 0">Accepting is not final: the Manager must still confirm the replacement.</p></div></div>'+
   '<div class="card flush scroll" style="margin-top:14px" role="region" aria-label="My absence reports" tabindex="0"><h2>My absence reports</h2><table><caption class="sr">My absence reports</caption><thead><tr><th scope="col">Shift</th><th scope="col">Submitted</th><th scope="col">Status</th></tr></thead><tbody>'+rep+'</tbody></table></div>';
 };
 
 SCREENS.scheduling=function(){
   var dr=S.draft, h='<h1>Weekly Scheduling</h1>';
-  h+='<div class="card"><div class="row sb">'+weekBar('2 Nov ΓÇô 8 Nov 2026','sch')+'<span>'+(dr&&dr.published?bd('ack','Published ΓÇô version 1'):dr?bd('neu','Draft ΓÇô not published'):bd('neu','No draft yet'))+'</span>'+
+  h+='<div class="card"><div class="row sb">'+weekBar('2 Nov – 8 Nov 2026','sch')+'<span>'+(dr&&dr.published?bd('ack','Published – version 1'):dr?bd('neu','Draft – not published'):bd('neu','No draft yet'))+'</span>'+
     (!dr?'<button type="button" class="btn p" data-act="generate" data-fk="gen">Generate Draft</button>':(dr.published?'':'<button type="button" class="btn" data-act="generate" data-fk="gen">Regenerate Draft</button>'))+'</div></div>';
+  h+='<div class="row sm" style="margin:-6px 0 12px"><button type="button" class="btn s" data-act="go" data-to="staffing" data-fk="to-staff">Staffing requirements</button><label class="chk" style="font-weight:500" for="simfail"><input type="checkbox" id="simfail" data-act="simfail" data-fk="simfail"'+(S.simFail?' checked':'')+'><span>Demo: simulate a generation timeout</span></label></div>';
   if(!dr) return h+'<div class="card"><strong>No draft for this week.</strong><p class="muted" style="margin:6px 0 0">Select Generate Draft. The system uses staffing requirements, qualifications, availability, rest-time rules, and the last four weeks of workload.</p></div>';
-  if(dr.unc>0&&!dr.published) h+='<div class="alert warn"><strong>Warning:</strong> '+dr.unc+' uncovered position ΓÇô Thu 5 Nov ┬╖ Night ┬╖ QC Inspector. Publishing requires your explicit confirmation.</div>';
+  if(dr.unc>0&&!dr.published) h+='<div class="alert warn"><strong>Warning:</strong> '+dr.unc+' uncovered position – Thu 5 Nov · Night · QC Inspector. Publishing requires your explicit confirmation.</div>';
   var heads=['Mon 2','Tue 3','Wed 4','Thu 5','Fri 6','Sat 7','Sun 8'].map(function(d){return '<th scope="col" class="c">'+d+' Nov</th>';}).join('');
   var body=['M','A','N'].map(function(s){
     var cells=REQ[s].map(function(r,d){
       var miss=(s==='N'&&d===3&&dr.unc>0), got=miss?r-1:r, on=(S.sel.s===s&&S.sel.d===d);
-      return '<td class="g"><button type="button" class="cellbtn" data-act="cell" data-s="'+s+'" data-d="'+d+'" data-fk="cell-'+s+d+'" aria-pressed="'+on+'" aria-label="'+SH[s].n+', '+['Mon 2','Tue 3','Wed 4','Thu 5','Fri 6','Sat 7','Sun 8'][d]+' November: '+got+' of '+r+' positions filled'+(miss?', 1 uncovered':'')+'">'+got+'/'+r+(miss?'<br>'+bd('can','ΓÜá Uncovered'):'')+'</button></td>';}).join('');
+      return '<td class="g"><button type="button" class="cellbtn" data-act="cell" data-s="'+s+'" data-d="'+d+'" data-fk="cell-'+s+d+'" aria-pressed="'+on+'" aria-label="'+SH[s].n+', '+['Mon 2','Tue 3','Wed 4','Thu 5','Fri 6','Sat 7','Sun 8'][d]+' November: '+got+' of '+r+' positions filled'+(miss?', 1 uncovered':'')+'">'+got+'/'+r+(miss?'<br>'+bd('can','⚠ Uncovered'):'')+'</button></td>';}).join('');
     return '<tr><th scope="row">'+SH[s].n+'<br><span class="sm muted" style="font-weight:400">'+SH[s].t+'</span></th>'+cells+'</tr>';}).join('');
   h+='<div class="card flush scroll" role="region" aria-label="Coverage grid" tabindex="0"><h2>Coverage (assigned / required positions)</h2><table style="margin-top:8px"><caption class="sr">Assigned and required positions per shift and day</caption><thead><tr><th scope="col">Shift</th>'+heads+'</tr></thead><tbody>'+body+'</tbody></table></div>';
-  h+='<p class="sm muted" style="margin:-6px 2px 14px">Required: 57 ┬╖ Assigned: '+(57-dr.unc)+' ┬╖ Uncovered: '+dr.unc+'</p>';
+  h+='<p class="sm muted" style="margin:-6px 2px 14px">Required: 57 · Assigned: '+(57-dr.unc)+' · Uncovered: '+dr.unc+'</p>';
   var sel=S.sel, req=REQ[sel.s][sel.d], isU=(sel.s==='N'&&sel.d===3&&dr.unc>0);
-  h+='<div class="card"><h2>Selected: '+['Mon 2','Tue 3','Wed 4','Thu 5','Fri 6','Sat 7','Sun 8'][sel.d]+' Nov ┬╖ '+lab(sel.s)+'</h2><p class="sm" style="margin:0">Required '+req+' ┬╖ '+(isU?'Assigned 1 (Hoang Van Em, Machine Operator) ┬╖ Uncovered: QC Inspector':'All '+req+' positions covered.')+'</p>';
-  if(isU&&!dr.published) h+='<form data-form="assign" style="margin-top:12px" class="row"><div style="flex:1;min-width:220px"><label for="cand">Assign an eligible employee (manual adjustment)</label><select id="cand"><option>Do Van Hieu ΓÇô QC Inspector, rest time OK</option><option>Vo Thi Phuong ΓÇô QC Inspector, rest time OK</option></select></div><button type="submit" class="btn" data-fk="assign">Assign</button></form>';
+  h+='<div class="card"><h2>Selected: '+['Mon 2','Tue 3','Wed 4','Thu 5','Fri 6','Sat 7','Sun 8'][sel.d]+' Nov · '+lab(sel.s)+'</h2><p class="sm" style="margin:0">Required '+req+' · '+(isU?'Assigned 1 (Hoang Van Em, Machine Operator) · Uncovered: QC Inspector':'All '+req+' positions covered.')+'</p>';
+  if(isU&&!dr.published) h+='<form data-form="assign" style="margin-top:12px" class="row"><div style="flex:1;min-width:220px"><label for="cand">Assign an eligible employee (manual adjustment)</label><select id="cand"><option>Do Van Hieu – QC Inspector, rest time OK</option><option>Vo Thi Phuong – QC Inspector, rest time OK</option></select></div><button type="submit" class="btn" data-fk="assign">Assign</button></form>';
   h+='</div>';
-  h+='<div class="card flush scroll" role="region" aria-label="Fairness indicators" tabindex="0"><h2>Fairness indicators (current week + 4 preceding weeks)</h2><table style="margin-top:8px"><caption class="sr">Fairness indicators</caption><thead><tr><th scope="col">Employee</th><th scope="col" class="c">Hours this week</th><th scope="col" class="c">Avg. hours (5 weeks)</th><th scope="col" class="c">Night shifts (5 weeks)</th><th scope="col" class="c">ΓÇ£Prefer NotΓÇ¥ conflicts</th></tr></thead><tbody>'+
+  h+='<div class="card flush scroll" role="region" aria-label="Fairness indicators" tabindex="0"><h2>Fairness indicators (current week + 4 preceding weeks; history 28 Sep – 25 Oct)</h2><table style="margin-top:8px"><caption class="sr">Fairness indicators</caption><thead><tr><th scope="col">Employee</th><th scope="col" class="c">Hours this week</th><th scope="col" class="c">Avg. hours (5 weeks)</th><th scope="col" class="c">Night shifts (5 weeks)</th><th scope="col" class="c">“Prefer Not” conflicts</th></tr></thead><tbody>'+
    '<tr><td>Nguyen Van An</td><td class="c">32</td><td class="c">36</td><td class="c">2</td><td class="c">0</td></tr><tr><td>Tran Thi Binh</td><td class="c">40</td><td class="c">38</td><td class="c">4</td><td class="c">0</td></tr><tr><td>Le Van Cuong</td><td class="c">32</td><td class="c">35</td><td class="c">1</td><td class="c">1</td></tr><tr><td>Hoang Van Em</td><td class="c">40</td><td class="c">39</td><td class="c">6</td><td class="c">0</td></tr></tbody></table></div>';
+  h+=otApprovalCard();
   if(!dr.published){
-    if(dr.confirm) h+='<div class="alert warn" role="alertdialog" aria-labelledby="cf-t"><p id="cf-t" style="margin:0 0 8px"><strong>Publish with '+dr.unc+' uncovered position?</strong> Employees will see the schedule with this shortage. Your confirmation is recorded.</p><div class="row"><button type="button" class="btn p" data-act="publish-yes" data-fk="pub-yes">Publish anyway</button><button type="button" class="btn" data-act="publish-no" data-fk="pub-no">Go back</button></div></div>';
+    if(dr.confirm) h+='<div class="alert warn" role="alertdialog" aria-labelledby="cf-t"><p id="cf-t" style="margin:0 0 8px"><strong>Publish with '+dr.unc+' uncovered position?</strong> Employees will see the schedule with this shortage. Your confirmation is recorded.</p><div class="row"><button type="button" class="btn p" data-act="publish-yes" data-fk="pub-yes">Confirm and publish</button><button type="button" class="btn" data-act="publish-no" data-fk="pub-no">Cancel</button></div></div>';
     else h+='<div class="row"><button type="button" class="btn" data-act="savedraft" data-fk="save">Save Draft</button><button type="button" class="btn p" data-act="publish" data-fk="pub">Publish Schedule</button></div>';
   }
   return h;
@@ -352,18 +424,18 @@ SCREENS.scheduling=function(){
 
 SCREENS.team=function(){
   var w=S.week;
-  var h='<h1>Team Schedule</h1><div class="row sb" style="margin-bottom:10px">'+weekBar(WEEKS[w],'tw')+'<span class="sm muted">Official version '+(w===1?S.ver:'ΓÇô')+'</span></div>';
+  var h='<h1>Team Schedule</h1><div class="row sb" style="margin-bottom:10px">'+weekBar(WEEKS[w],'tw')+'<span class="sm muted">Official version '+(w===1?S.ver:'–')+'</span></div>';
   if(w!==1) return h+'<div class="card"><strong>Sample data is available for the week of 26 Oct only.</strong><p class="muted" style="margin:6px 0 0">In the real system this page shows the official version of the selected week, or tells you that none is published.</p></div>';
-  var pend=S.team.filter(function(t){return t.ack==='pending';}).length, tot=S.team.length;
-  h+='<div class="card" style="padding:9px 14px"><div class="row sb"><span><strong>'+(tot-pend)+' of '+tot+'</strong> employees have acknowledged the latest update ┬╖ <strong>'+pend+' pending</strong></span>'+
+  var ac=ackCounts();
+  h+='<div class="card" style="padding:9px 14px"><div class="row sb"><span><strong>'+ac.done+' of '+ac.req+'</strong> required employees have acknowledged the latest update · <strong>'+ac.pend+' pending</strong> · '+ac.notreq+' not required · '+ac.sup+' superseded</span>'+
     '<label class="chk" style="margin:0;font-weight:500" for="pend"><input type="checkbox" id="pend" data-act="pendonly" data-fk="pend"'+(S.pendingOnly?' checked':'')+'><span>Show pending only</span></label></div></div>';
   var rows=S.team.filter(function(t){return !S.pendingOnly||t.ack==='pending';}).map(function(t){
     var codes=codesOf(t);
-    return '<tr><th scope="row" style="background:none;font-size:14px;font-weight:500">'+t.n+'</th>'+codes.map(function(c){return '<td class="c">'+(c==='-'?'ΓÇô':c)+'</td>';}).join('')+'<td class="c">'+hoursOf(t)+'</td><td>'+(t.ack==='pending'?bd('pen','Pending'):bd('ack','Acknowledged')+' <span class="sm muted">'+t.ack+'</span>')+'</td></tr>';}).join('');
+    return '<tr><th scope="row" style="background:none;font-size:14px;font-weight:500">'+t.n+'</th>'+codes.map(function(c){return '<td class="c">'+(c==='-'?'–':c)+'</td>';}).join('')+'<td class="c">'+hoursOf(t)+'</td><td>'+(t.ack==='pending'?bd('pen','Pending'):t.ack==='notreq'?bd('neu','Not required'):bd('ack','Acknowledged')+' <span class="sm muted">'+t.ack+'</span>')+'</td></tr>';}).join('');
   h+='<div class="card flush scroll" role="region" aria-label="Team schedule table" tabindex="0"><table><caption class="sr">Team schedule for the week of 26 October</caption><thead><tr><th scope="col">Employee</th>'+DAYS.map(function(d){return '<th scope="col" class="c">'+d+'</th>';}).join('')+'<th scope="col" class="c">Hours</th><th scope="col">Acknowledgement</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
-  h+='<p class="legend">M = Morning 06ΓÇô14 ┬╖ A = Afternoon 14ΓÇô22 ┬╖ N = Night 22ΓÇô06 ┬╖ ΓÇô = Off ┬╖ Abs = absence or no-show, replacement not confirmed</p>';
+  h+='<p class="legend">M = Morning 06–14 · A = Afternoon 14–22 · N = Night 22–06 · – = Off · Abs = absence or no-show, replacement not confirmed · Not required = the latest update does not change this employee’s assignments</p>';
   var u=uncovered();
-  h+=u.length?'<div class="alert warn"><strong>Uncovered positions ('+u.length+'):</strong> '+u.map(function(x){return dayLabel(x.d)+' ┬╖ '+SH[x.c].n+' ┬╖ '+x.pos;}).join('; ')+'</div>':'<div class="alert ok">All positions are covered.</div>';
+  h+=u.length?'<div class="alert warn"><strong>Uncovered positions ('+u.length+'):</strong> '+u.map(function(x){return dayLabel(x.d)+' · '+SH[x.c].n+' · '+x.pos;}).join('; ')+'</div>':'<div class="alert ok">All positions are covered.</div>';
   return h;
 };
 
@@ -377,42 +449,44 @@ SCREENS.coverage=function(){
     '<button type="submit" class="btn p" data-fk="ns-save">Save no-show</button></form></div>';
   }
   var list=S.items.map(function(it){var st=status(it);
-    return '<button type="button" class="item" data-act="pick" data-id="'+it.id+'" data-fk="item-'+it.id+'" aria-pressed="'+(it.id===S.selItem)+'"><strong>'+it.name+'</strong><br><span class="sm">'+dayLabel(it.d)+' ┬╖ '+SH[it.c].n+' ┬╖ '+it.kind+'</span><br>'+bd(st[1],st[0])+'</button>';}).join('');
+    return '<button type="button" class="item" data-act="pick" data-id="'+it.id+'" data-fk="item-'+it.id+'" aria-pressed="'+(it.id===S.selItem)+'"><strong>'+it.name+'</strong><br><span class="sm">'+dayLabel(it.d)+' · '+SH[it.c].n+' · '+it.kind+'</span><br>'+bd(st[1],st[0])+(inProg(it)&&!it.resolved?' '+bd('chg','In progress'):'')+'</button>';}).join('');
   var it=current(), det='';
   if(it){
     var st=status(it);
-    det+='<div class="card"><h2>Coverage for '+dayLabel(it.d)+' ┬╖ '+lab(it.c)+' ┬╖ '+it.pos+'</h2><p class="sm muted" style="margin:0">Absent: '+it.name+(it.reason?' ┬╖ Reason: '+it.reason:'')+' ┬╖ '+(it.resolved?'Coverage confirmed.':'The shortage stays visible until a valid replacement is confirmed.')+'</p></div>';
+    det+='<div class="card"><h2>Coverage for '+dayLabel(it.d)+' · '+lab(it.c)+' · '+it.pos+'</h2><p class="sm muted" style="margin:0">Absent: '+it.name+(it.reason?' · Reason: '+it.reason:'')+' · '+(it.resolved?'Coverage confirmed.':'The shortage stays visible until a valid replacement is confirmed.')+(it.expl?' · Explanation: '+esc(it.expl):'')+(inProg(it)&&!it.resolved?' This shift is in progress, so a confirmed replacement takes effect from the time of confirmation.':'')+'</p><p class="sm" style="margin:6px 0 0"><strong>'+(inProg(it)?'Remaining interval to cover':'Interval to cover')+':</strong> '+(it.resolved&&it.effText?it.effText+' (effective after confirmation)':covText(it,false))+'</p></div>';
+    if(isEnded(it)&&!it.resolved){det+='<div class="alert info"><strong>This shift has already ended.</strong> A replacement can no longer be arranged. The record stays in the absence history.</div>';}else{
     var active=it.offer&&(it.offer.st==='pending'||it.offer.st==='accepted');
     var cands=S.team.filter(function(t){return t.n!==it.name&&['Nguyen Van An','Vo Thi Phuong','Do Van Hieu'].indexOf(t.n)>-1;});
     var crow=cands.map(function(t){
       var cell, mine=it.offer&&it.offer.to===t.n;
-      if(it.resolved) cell=mine?bd('ack','Confirmed'):'ΓÇö';
+      if(it.resolved) cell=mine?bd('ack','Confirmed'):'—';
       else if(mine&&it.offer.st==='pending') cell=bd('pen','Pending')+' <button type="button" class="btn s" data-act="cancel" data-id="'+it.id+'" data-fk="cancel-'+it.id+'" aria-label="Cancel offer to '+t.n+'">Cancel offer</button>';
       else if(mine&&it.offer.st==='accepted') cell=bd('chg','Accepted');
       else if(active) cell='<button type="button" class="btn s" aria-disabled="true" data-act="noop" data-why="Only one pending offer is allowed per uncovered position. Cancel the current offer first." data-fk="send-'+t.n.split(' ').pop()+'" aria-label="Send offer to '+t.n+' (unavailable)">Send offer</button>';
       else cell=(mine&&it.offer.st==='rejected'?bd('neu','Declined')+' ':mine&&it.offer.st==='cancelled'?bd('neu','Cancelled')+' ':'')+'<button type="button" class="btn s" data-act="send" data-id="'+it.id+'" data-to="'+t.n+'" data-fk="send-'+t.n.split(' ').pop()+'" aria-label="Send offer to '+t.n+'">Send offer</button>';
-      return '<tr><td>'+t.n+'</td><td class="c">'+hoursOf(t)+'</td><td class="c">OK</td><td class="c">'+cell+'</td></tr>';}).join('');
-    det+='<div class="card flush scroll" role="region" aria-label="Eligible replacement candidates" tabindex="0"><h2>Eligible replacement candidates</h2><table style="margin-top:8px"><caption class="sr">Eligible candidates for this position</caption><thead><tr><th scope="col">Employee</th><th scope="col" class="c">Hours this week</th><th scope="col" class="c">Rest time</th><th scope="col" class="c">Offer</th></tr></thead><tbody>'+crow+'</tbody></table>'+
+      var otc=isOT(t.n,it);
+      return '<tr><td>'+t.n+'</td><td class="c">'+hoursOf(t)+'</td><td class="c">OK</td><td class="c">'+(otc?(mine&&it.offer.consent?'Yes – consent recorded':'Yes – consent required'):'No')+'</td><td class="c">'+cell+'</td></tr>';}).join('');
+    det+='<div class="card flush scroll" role="region" aria-label="Eligible replacement candidates" tabindex="0"><h2>Eligible replacement candidates</h2><table style="margin-top:8px"><caption class="sr">Eligible candidates for this position</caption><thead><tr><th scope="col">Employee</th><th scope="col" class="c">Hours this week</th><th scope="col" class="c">Rest time</th><th scope="col" class="c">Overtime</th><th scope="col" class="c">Offer</th></tr></thead><tbody>'+crow+'</tbody></table>'+
       '<p class="sm muted" style="padding:6px 16px;margin:0">Only one pending offer is allowed per uncovered position, so other offers are unavailable while one is pending.</p></div>';
     var ready=it.offer&&it.offer.st==='accepted'&&!it.resolved;
-    det+='<div class="card"><h2>Manager decision</h2>'+(it.resolved?'<p style="margin:0">'+bd('ack','Resolved')+' The replacement was confirmed and published in version '+S.ver+'.</p>':
-      '<p class="sm muted" style="margin:0 0 8px">'+(ready?'The employee accepted. Confirm to publish the replacement as a new schedule version.':'Available after the employee accepts an offer.')+'</p><div class="row">'+
+    det+='<div class="card"><h2>Manager decision</h2>'+(it.resolved?'<p style="margin:0">'+bd('ack','Resolved')+' The replacement was confirmed and published in version '+S.ver+'. <strong>Effective interval:</strong> '+(it.effText||covText(it,true))+'.</p>':
+      '<p class="sm muted" style="margin:0 0 8px">'+(ready?'The employee accepted'+(it.offer.ot?' and gave explicit overtime consent':'')+'. Confirm to publish the replacement as a new schedule version'+(inProg(it)?'; it takes effect from the time of confirmation ('+REM.eff+').':'.'):'Available after the employee accepts an offer.')+'</p><div class="row">'+
       '<button type="button" class="btn p"'+(ready?' data-act="confirm"':' aria-disabled="true" data-act="noop" data-why="Confirmation is available after the employee accepts the offer."')+' data-id="'+it.id+'" data-fk="confirm">Confirm replacement</button>'+
-      '<button type="button" class="btn"'+(ready?' data-act="decline"':' aria-disabled="true" data-act="noop" data-why="This is available after the employee accepts the offer."')+' data-id="'+it.id+'" data-fk="decline">Do not confirm</button></div>')+'</div>';
-  }
+      '<button type="button" class="btn"'+(ready?' data-act="decline"':' aria-disabled="true" data-act="noop" data-why="This is available after the employee accepts the offer."')+' data-id="'+it.id+'" data-fk="decline">Decline confirmation</button></div>')+'</div>';
+  }}
   return h+'<div class="cols" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"><div><h2 class="sr">Reported absences and no-shows</h2>'+list+'</div><div>'+det+'</div></div>';
 };
 
 SCREENS.overview=function(){
   var u=uncovered(), unc=u.length, req=57, cov=Math.round((req-unc)/req*100);
-  var pend=S.team.filter(function(t){return t.ack==='pending';}).length;
-  var unres=S.items.filter(function(i){return !i.resolved;}).length;
+  var ac=ackCounts();
+  var unres=S.items.filter(function(i){return !i.resolved&&!isEnded(i);}).length;
   var w=S.week;
   var tiles='<div class="tiles"><div class="tile"><div class="sm muted">Coverage</div><div class="n">'+cov+'%</div><div class="sm">'+(req-unc)+' of '+req+' positions</div></div>'+
     '<div class="tile"><div class="sm muted">Uncovered positions</div><div class="n">'+unc+'</div><div class="sm">'+(unc?u.map(function(x){return DAYS[x.d]+' '+SH[x.c].n;}).join(', '):'None')+'</div></div>'+
     '<div class="tile"><div class="sm muted">Absences / no-shows</div><div class="n">'+S.items.length+'</div><div class="sm">'+unres+' unresolved</div></div>'+
-    '<div class="tile"><div class="sm muted">Pending acknowledgements</div><div class="n">'+pend+'</div><div class="sm">of '+S.team.length+' employees</div></div></div>';
-  var h='<div class="row sb"><h1>Staffing &amp; Workload Overview</h1>'+weekBar(WEEKS[w],'bw')+'</div>';
+    '<div class="tile"><div class="sm muted">Acknowledgement progress</div><div class="n">'+ac.done+'/'+ac.req+'</div><div class="sm">'+ac.pend+' pending · '+ac.notreq+' not required · '+ac.sup+' superseded</div></div></div>';
+  var h='<div class="row sb"><h1>Staffing &amp; Workload Overview</h1>'+weekBar(WEEKS[w],'bw')+'</div><p class="sm muted" style="margin:-6px 0 12px">Production team A · single-team MVP · personal absence explanations are not shown.</p>';
   if(w!==1) return h+'<div class="card"><strong>Sample data is available for the week of 26 Oct only.</strong></div>';
   var cd=DAYS.map(function(d,i){var pos=i<5?9:6, un=u.filter(function(x){return x.d===i;}).length, p=Math.round((pos-un)/pos*100);
     return '<div class="barrow"><span class="d">'+d+'</span><span class="bar" aria-hidden="true" style="width:'+(p*2.2)+'px"></span><strong>'+p+'%</strong></div>';}).join('');
@@ -422,16 +496,113 @@ SCREENS.overview=function(){
   '<div class="alert info" style="margin-top:14px"><strong>Read-only summary.</strong> Schedules are edited by the Manager only. You see authorized staffing and workload summaries for the production team.</div>';
 };
 
+SCREENS.availability=function(){
+  var locked=S.avLocked, vals=locked?AVBASE:(S.avWork||S.avSaved);
+  var d2=locked?['26 Oct','27 Oct','28 Oct','29 Oct','30 Oct','31 Oct','1 Nov']:['2 Nov','3 Nov','4 Nov','5 Nov','6 Nov','7 Nov','8 Nov'];
+  var allU=Object.keys(vals).every(function(k){return vals[k]==='U';});
+  var NM={A:'Available',U:'Unavailable',P:'Prefer Not'};
+  var heads=DAYS.map(function(d,i){return '<th scope="col" class="c">'+d+' '+d2[i]+'</th>';}).join('');
+  var body=['M','A','N'].map(function(c){
+    return '<tr><th scope="row">'+SH[c].n+'<br><span class="sm muted" style="font-weight:400">'+SH[c].t+(c==='N'?' (ends next day)':'')+'</span></th>'+DAYS.map(function(d,i){
+      var k=i+c, v=vals[k];
+      if(locked) return '<td class="c">'+NM[v]+'</td>';
+      return '<td class="g"><select data-av="'+k+'" data-fk="av-'+k+'" aria-label="'+d+' '+d2[i]+', '+SH[c].n+'">'+['A','U','P'].map(function(o){return '<option value="'+o+'"'+(v===o?' selected':'')+'>'+NM[o]+'</option>';}).join('')+'</select></td>';}).join('')+'</tr>';}).join('');
+  return '<h1>Availability and Overtime Sign-up</h1><p class="sm muted" style="margin:-4px 0 12px">Availability and overtime consent are separate: saving availability never signs you up for overtime, and signing up never changes your availability.</p>'+
+  '<div class="card"><div class="row sb"><div style="min-width:240px"><label for="avweek">Week</label><select id="avweek" data-chg="avweek"><option value="open"'+(locked?'':' selected')+'>2 Nov – 8 Nov 2026 (open)</option><option value="locked"'+(locked?' selected':'')+'>26 Oct – 1 Nov 2026 (locked)</option></select></div>'+
+  '<div class="sm" style="flex:1;min-width:240px">'+(locked?'<strong>Locked since Thu 22 Oct 2026, 18:00.</strong> This week is read-only.':'<strong>Submission closes Thu 29 Oct 2026, 18:00</strong> (Asia/Ho_Chi_Minh, UTC+7). It is now Thu 29 Oct, 06:30.')+'</div></div></div>'+
+  (allU&&!locked?'<div class="alert warn" role="alert"><strong>Warning:</strong> every shift is marked Unavailable. You can still save, but the Manager will not be able to schedule you this week.</div>':'')+
+  '<form data-form="availability" novalidate><div class="card flush scroll" role="region" aria-label="Availability grid" tabindex="0"><table><caption class="sr">Availability for each shift and day</caption><thead><tr><th scope="col">Shift</th>'+heads+'</tr></thead><tbody>'+body+'</tbody></table></div>'+
+  (locked?'':'<div class="row"><button type="submit" class="btn p" data-fk="av-save">Save availability</button><button type="button" class="btn" data-act="avreset" data-fk="av-reset">Reset to baseline</button></div>')+
+  '</form><p class="legend"><strong>Available</strong> = may be scheduled · <strong>Prefer Not</strong> = the scheduler avoids it when possible · <strong>Unavailable</strong> = never scheduled. Your baseline is your standing weekly pattern; Reset restores it, and Save stores it for this week.</p>'+otList();
+};
+
+function otList(){
+  var rows=S.ot.map(function(o){
+    var su=otSu(o,'Nguyen Van An'), st, act='';
+    if(o.closed){st=bd('neu','Closed');}
+    else if(!su){st=bd('neu','Not signed up');act='<button type="button" class="btn p s" data-act="otopen" data-o="'+o.id+'" data-fk="ot-su-'+o.id+'" aria-label="Sign up for overtime on '+otDay(o.d)+'">Sign up</button>';}
+    else if(su.st==='pending'){st=bd('pen','Signed up – awaiting approval');act='<button type="button" class="btn s" data-act="otwd" data-o="'+o.id+'" data-fk="ot-wd-'+o.id+'" aria-label="Withdraw from overtime on '+otDay(o.d)+'">Withdraw</button>';}
+    else if(su.st==='approved'){st=bd('ack',o.published?'Approved – published':'Approved');act='<span class="sm muted">Contact your Manager to change an approved shift.</span>';}
+    else{st=bd('neu','Not approved');}
+    var panel='';
+    if(S.otConsent===o.id&&!su&&!o.closed) panel='<tr><td colspan="5" style="background:var(--surface2)"><form data-form="otsignup" data-o="'+o.id+'" novalidate><p class="sm" style="margin:0 0 6px"><strong>Overtime terms:</strong> '+OT_TERMS+'</p><label class="chk" for="otcons"><input type="checkbox" id="otcons" aria-describedby="otcons-err"><span>I consent to work this overtime shift under the terms above.</span></label><div id="otcons-err" class="err-t"'+(S.otErr?'':' hidden')+'>'+S.otErr+'</div><div class="row" style="margin-top:8px"><button type="submit" class="btn p s" data-fk="ot-confirm">Confirm sign-up</button><button type="button" class="btn s" data-act="otclose" data-fk="ot-cancel">Cancel</button></div></form></td></tr>';
+    return '<tr><td><strong>'+otDay(o.d)+'</strong><br>'+otIv(o)+'</td><td>'+esc(o.loc)+'</td><td>'+esc(o.duties)+'<br><span class="sm muted">'+esc(o.note)+'</span></td><td>'+st+'</td><td>'+act+'</td></tr>'+panel;}).join('');
+  return '<h2 style="margin:18px 0 8px">Overtime shifts</h2><div class="card flush scroll" role="region" aria-label="Overtime shifts" tabindex="0"><table><caption class="sr">Posted overtime shifts with terms and your sign-up status</caption><thead><tr><th scope="col">Shift and interval</th><th scope="col">Location</th><th scope="col">Duties and compensation note</th><th scope="col">Your status</th><th scope="col">Action</th></tr></thead><tbody>'+rows+'</tbody></table></div><p class="legend">Signing up records your consent only. The Manager checks eligibility and approves before the schedule is published.</p>';
+}
+
+SCREENS.accounts=function(){
+  var er=S.accErr||{}, h='<div class="row sb"><h1>Employee Accounts</h1>'+(S.accMode==='list'?'<button type="button" class="btn p s" data-act="accnew" data-fk="acc-new">Create employee account</button>':'')+'</div>';
+  if(S.accConfirm){var c=S.accConfirm;
+    h+='<div class="alert warn" role="alertdialog" aria-labelledby="ac-t"><p id="ac-t" style="margin:0 0 8px"><strong>'+(c.to==='inactive'?'Deactivate':'Activate')+' the account of '+esc(c.n)+'?</strong> '+(c.to==='inactive'?'They will no longer be able to log in. Published assignments are not changed automatically; check coverage afterwards.':'They will be able to log in again.')+'</p><div class="row"><button type="button" class="btn p" data-act="accyes" data-fk="ac-yes">Confirm</button><button type="button" class="btn" data-act="accno" data-fk="ac-no">Cancel</button></div></div>';}
+  if(S.accMode!=='list'){
+    var ed=S.accMode==='edit', cur=ed?S.acc.filter(function(a){return a.email===S.accEdit;})[0]:{n:'',email:'',pos:''}, v=S.accVals||cur;
+    h+='<div class="card"><h2>'+(ed?'Edit employee':'New employee')+'</h2><form data-form="account" novalidate>'+
+    '<div class="fld"><label for="an-name">Full name</label><input id="an-name" type="text" value="'+esc(v.n)+'" aria-describedby="an-name-err"'+(er.n?' aria-invalid="true"':'')+'><div id="an-name-err" class="err-t"'+(er.n?'':' hidden')+'>'+(er.n||'')+'</div></div>'+
+    (ed?'<div class="fld"><span class="lbl">Work email</span><div>'+esc(cur.email)+' <span class="sm muted">(cannot be changed here)</span></div></div>':
+    '<div class="fld"><label for="an-email">Work email</label><input id="an-email" type="email" value="'+esc(v.email)+'" aria-describedby="an-email-err"'+(er.email?' aria-invalid="true"':'')+'><div id="an-email-err" class="err-t"'+(er.email?'':' hidden')+'>'+(er.email||'')+'</div></div>')+
+    '<div class="fld"><label for="an-pos">Position</label><select id="an-pos" aria-describedby="an-pos-err"'+(er.pos?' aria-invalid="true"':'')+'><option value="">Select a position</option>'+POSLIST.map(function(p){return '<option'+(v.pos===p?' selected':'')+'>'+p+'</option>';}).join('')+'</select><div id="an-pos-err" class="err-t"'+(er.pos?'':' hidden')+'>'+(er.pos||'')+'</div></div>'+
+    '<div class="fld"><span class="lbl">Role</span><div>Employee <span class="sm muted">(fixed)</span></div></div>'+
+    '<div class="row"><button type="submit" class="btn p" data-fk="acc-save">'+(ed?'Save changes':'Create account')+'</button><button type="button" class="btn" data-act="acccancel" data-fk="acc-cancel">Cancel</button></div>'+
+    (ed?'':'<p class="sm muted" style="margin:10px 0 0">The new account is created as Active. The employee sets a password through the authentication service.</p>')+'</form></div>';
+  }
+  var rows=S.acc.map(function(a,i){
+    return '<tr><th scope="row" style="background:none;font-size:14px;font-weight:500">'+esc(a.n)+'</th><td>'+esc(a.email)+'</td><td>'+a.pos+'</td><td>'+(a.active?bd('ack','Active'):bd('neu','Inactive'))+'</td><td><button type="button" class="btn s" data-act="accedit" data-e="'+esc(a.email)+'" data-fk="acc-ed-'+i+'" aria-label="Edit '+esc(a.n)+'">Edit</button> '+
+      (a.active?'<button type="button" class="btn s" data-act="accask" data-e="'+esc(a.email)+'" data-to="inactive" data-fk="acc-tg-'+i+'" aria-label="Deactivate '+esc(a.n)+'">Deactivate</button>':'<button type="button" class="btn s" data-act="accask" data-e="'+esc(a.email)+'" data-to="active" data-fk="acc-tg-'+i+'" aria-label="Activate '+esc(a.n)+'">Activate</button>')+'</td></tr>';}).join('');
+  return h+'<div class="card flush scroll" role="region" aria-label="Team accounts" tabindex="0"><table><caption class="sr">Employee accounts of your production team</caption><thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Position</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody>'+rows+'</tbody></table></div><p class="legend">'+S.acc.filter(function(a){return a.active;}).length+' active · '+S.acc.filter(function(a){return !a.active;}).length+' inactive. Inactive accounts cannot log in. Accounts are managed by the Manager only; Manager and Boss accounts are not listed.</p>';
+};
+
+SCREENS.staffing=function(){
+  var tgt=S.stTarget, saved=tgt==='default'?S.staffDef:S.staffWeek, w=S.stWork||saved, er=S.stErr||{keys:{},msgs:[]};
+  var heads=DAYS.map(function(d){return '<th scope="col" class="c">'+d+'</th>';}).join('');
+  var body='',tot='';
+  ['M','A','N'].forEach(function(c){
+    POS.forEach(function(p,pi){
+      body+='<tr><th scope="row">'+SH[c].n+' · '+p+'</th>'+DAYS.map(function(d,i){var k=c+'|'+pi+'|'+i;
+        return '<td class="g"><input type="number" min="0" max="50" step="1" inputmode="numeric" data-sk="'+k+'" data-fk="st-'+k+'" value="'+(isNaN(w[k])?'':w[k])+'" aria-label="'+SH[c].n+', '+p+', '+d+'"'+(S.closed[c]?' disabled':'')+(er.keys[k]?' aria-invalid="true"':'')+' style="text-align:center;padding:5px 2px"></td>';}).join('')+'</tr>';});
+    body+='<tr><th scope="row" style="font-weight:400">Total '+SH[c].n+(S.crit[c]?' (critical)':'')+(S.closed[c]?' (closed)':'')+'</th>'+DAYS.map(function(d,i){return '<td class="c" data-tot="'+c+'|'+i+'"><strong>'+((isNaN(w[c+'|0|'+i])||isNaN(w[c+'|1|'+i]))?'?':(w[c+'|0|'+i]+w[c+'|1|'+i]))+'</strong></td>';}).join('')+'</tr>';});
+  var shiftRows=['M','A','N'].map(function(c){return '<tr><th scope="row">'+SH[c].n+' '+SH[c].t+'</th><td class="c"><label class="chk" style="justify-content:center;margin:0;font-weight:500" for="cl-'+c+'"><input type="checkbox" id="cl-'+c+'" data-act="closed" data-s="'+c+'" data-fk="cl-'+c+'"'+(S.closed[c]?' checked':'')+'><span>Closed this week</span></label></td><td class="c"><label class="chk" style="justify-content:center;margin:0;font-weight:500" for="cr-'+c+'"><input type="checkbox" id="cr-'+c+'" data-act="critical" data-s="'+c+'" data-fk="cr-'+c+'"'+(S.crit[c]?' checked':'')+'><span>Critical shift</span></label></td></tr>';}).join('');
+  var errBox=er.msgs.length?'<div class="alert err" role="alert"><strong>Not saved. Fix '+er.msgs.length+' problem'+(er.msgs.length===1?'':'s')+':</strong><ul style="margin:6px 0 0;padding-left:20px">'+er.msgs.map(function(m){return '<li>'+m+'</li>';}).join('')+'</ul></div>':'';
+  var stale=S.stStale?'<div class="alert err" role="alert"><strong>Not saved: the data changed.</strong> Another change was saved at 28 Oct 16:18 by Tran Minh Quan after you opened this page. Your values were not saved and nothing was overwritten. <div class="row" style="margin-top:8px"><button type="button" class="btn p s" data-act="loadlatest" data-fk="load-latest">Load latest values</button></div></div>':'';
+  var disc=S.stDiscard?'<div class="alert warn" role="alertdialog" aria-labelledby="dc-t"><p id="dc-t" style="margin:0 0 8px"><strong>Discard unsaved changes?</strong> The values you entered will be lost.</p><div class="row"><button type="button" class="btn p" data-act="stdiscard" data-fk="dc-yes">Discard</button><button type="button" class="btn" data-act="stkeep" data-fk="dc-no">Keep editing</button></div></div>':'';
+  return '<h1>Staffing Configuration and Overtime Posting</h1>'+
+  '<div class="card"><div class="row sb"><div style="min-width:260px"><label for="sttgt">Apply to</label><select id="sttgt" data-chg="sttgt"><option value="default"'+(tgt==='default'?' selected':'')+'>Default template (all weeks)</option><option value="week"'+(tgt==='week'?' selected':'')+'>Target week 2 Nov – 8 Nov 2026 only</option></select></div>'+
+  '<label class="chk" style="font-weight:500" for="simstale"><input type="checkbox" id="simstale" data-act="simstale" data-fk="simstale"'+(S.simStale?' checked':'')+'><span>Demo: simulate another Manager saving first</span></label></div></div>'+
+  errBox+stale+disc+
+  '<form data-form="staffing" novalidate><div class="card flush scroll" role="region" aria-label="Staffing grid" tabindex="0"><h2>Required employees per position (whole numbers; 0–50 in total per shift and day)</h2><table style="margin-top:8px"><caption class="sr">Required employees per shift, position, and day</caption><thead><tr><th scope="col">Shift · position</th>'+heads+'</tr></thead><tbody>'+body+'</tbody></table></div>'+
+  '<div class="card flush scroll" role="region" aria-label="Shift settings" tabindex="0"><h2>Shift settings</h2><table style="margin-top:8px"><caption class="sr">Closed and critical shift settings</caption><thead><tr><th scope="col">Shift</th><th scope="col" class="c">Closed</th><th scope="col" class="c">Critical</th></tr></thead><tbody>'+shiftRows+'</tbody></table></div>'+
+  '<div class="row"><button type="submit" class="btn p" data-fk="st-save">Save</button><button type="button" class="btn" data-act="copyprev" data-fk="st-copy">Copy from previous week</button><button type="button" class="btn" data-act="strdefault" data-fk="st-default">Reset to default</button><button type="button" class="btn" data-act="stcancel" data-fk="st-cancel">Cancel</button></div></form>'+
+  '<p class="legend">A new template applies only to drafts generated after it is saved. It never changes a published schedule. A closed shift needs no staff; a critical shift is reported first when positions are uncovered.</p>'+otPostCard();
+};
+
+function otPostCard(){
+  var er=S.otPostErr||{}, times=[];for(var t=6;t<=22;t++){times.push((t<10?'0':'')+t+':00');}
+  var topt=function(sel){return times.map(function(x){return '<option'+(x===sel?' selected':'')+'>'+x+'</option>';}).join('');};
+  var list=S.ot.map(function(o){return '<tr><td><strong>'+otDay(o.d)+'</strong><br>'+otIv(o)+'</td><td>'+esc(o.loc)+'</td><td>'+esc(o.duties)+'<br><span class="sm muted">'+esc(o.note)+'</span></td><td class="c">'+o.su.length+'</td><td>'+(o.closed?bd('neu','Closed'):bd('new','Open'))+'</td><td>'+(o.closed?'—':'<button type="button" class="btn s" data-act="otcloseposting" data-o="'+o.id+'" data-fk="ot-cl-'+o.id+'" aria-label="Close overtime on '+otDay(o.d)+'">Close posting</button>')+'</td></tr>';}).join('');
+  return '<h2 style="margin:18px 0 8px">Overtime posting</h2><div class="card"><form data-form="otpost" novalidate>'+
+  (er.msgs&&er.msgs.length?'<div class="alert err" role="alert"><strong>Not posted. Fix '+er.msgs.length+' problem'+(er.msgs.length===1?'':'s')+':</strong><ul style="margin:6px 0 0;padding-left:20px">'+er.msgs.map(function(m){return '<li>'+m+'</li>';}).join('')+'</ul></div>':'')+
+  '<div class="row" style="align-items:flex-end"><div style="min-width:150px"><label for="ot-day">Day (week 2–8 Nov)</label><select id="ot-day">'+DAYS.map(function(d,i){return '<option value="'+i+'">'+otDay(i)+'</option>';}).join('')+'</select></div>'+
+  '<div style="min-width:110px"><label for="ot-from">Start</label><select id="ot-from">'+topt('14:00')+'</select></div><div style="min-width:110px"><label for="ot-to">End</label><select id="ot-to">'+topt('18:00')+'</select></div></div>'+
+  '<div class="fld" style="margin-top:12px"><label for="ot-loc">Location</label><input id="ot-loc" type="text"'+(er.loc?' aria-invalid="true"':'')+'></div>'+
+  '<div class="fld"><label for="ot-duties">Duties</label><textarea id="ot-duties"'+(er.duties?' aria-invalid="true"':'')+'></textarea></div>'+
+  '<div class="fld"><label for="ot-note">Compensation note (informational only)</label><input id="ot-note" type="text" value="Compensation follows company overtime policy."></div>'+
+  '<button type="submit" class="btn p" data-fk="ot-post">Post overtime shift</button><p class="sm muted" style="margin:10px 0 0">Employees see the interval, location, duties, and note, and consent when they sign up. You approve sign-ups in Weekly Scheduling before publishing.</p></form></div>'+
+  '<div class="card flush scroll" role="region" aria-label="Posted overtime shifts" tabindex="0"><h2>Posted overtime shifts</h2><table style="margin-top:8px"><caption class="sr">Posted overtime shifts and sign-up counts</caption><thead><tr><th scope="col">Shift and interval</th><th scope="col">Location</th><th scope="col">Duties and note</th><th scope="col" class="c">Sign-ups</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead><tbody>'+list+'</tbody></table></div>';
+}
+
 /* ---------------------------------------------------------------- actions */
 function applyReplacement(it){
-  var cand=it.offer.to;
+  var cand=it.offer.to, anAff=(cand==='Nguyen Van An'||it.name==='Nguyen Van An');
   S.ver+=1; S.pub='28 Oct 2026, 16:25';
-  S.items.forEach(function(x){ });
-  // clear change markers of the previous version, then mark this one
-  S.an=S.an.map(function(r){return r.ch==='can'?row('-'):row(r.c,null,'',r.pos);});
-  if(cand==='Nguyen Van An'){S.an[it.d]=row(it.c,'new','Not assigned',it.pos);S.anAck='pending';S.anAckAt='';}
-  if(it.name==='Nguyen Van An'){S.an[it.d]=row(it.c,'can',lab(it.c),it.pos);S.anAck='pending';S.anAckAt='';}
-  S.team.forEach(function(t){if(t.n===cand&&cand!=='Nguyen Van An')t.ack='pending';});
+  if(anAff){
+    if(S.anAck==='pending'){S.sup+=1;S.anNote='Your earlier unacknowledged update was superseded by version '+S.ver+'. The summary below now includes all changes since your last acknowledged schedule.';}
+    else{S.an=S.an.map(function(r){return r.ch==='can'?row('-'):row(r.c,null,'',r.pos);});S.anNote='';}
+    if(cand==='Nguyen Van An'){S.an[it.d]=row(it.c,'new','Not assigned',it.pos);if(inProg(it))S.an[it.d].eff=REM.eff;}
+    if(it.name==='Nguyen Van An'){S.an[it.d]=row(it.c,'can',lab(it.c),it.pos);}
+    S.anAck='pending';S.anAckAt='';
+    S.team.forEach(function(t){if(t.n==='Nguyen Van An')t.ack='pending';});
+  }
+  S.team.forEach(function(t){if((t.n===cand||t.n===it.name)&&t.n!=='Nguyen Van An')t.ack='pending';});
+  it.effText=covText(it,true);
   it.resolved=true;
 }
 function act(a,ds,el){
@@ -446,21 +617,50 @@ function act(a,ds,el){
       S.week=nw;S.flash=null;render();announce('Showing '+WEEKS[nw]);return;
     case 'toggle': S.open[ds.i]=!S.open[ds.i];render();return;
     case 'noop': flash('info',ds.why||'Not available yet.');render();return;
-    case 'generate': S.draft={unc:1,published:false,confirm:false};S.sel={s:'N',d:3};flash('ok','Draft generated for 2ΓÇô8 Nov. 1 position could not be covered.');render();return;
+    case 'simfail': S.simFail=el.checked;render();announce(S.simFail?'Generation timeout will be simulated.':'Generation timeout simulation off.');return;
+    case 'simstale': S.simStale=el.checked;render();return;
+    case 'generate':
+      if(S.simFail){flash('err','Draft generation failed: the solver timed out after 30 s. The official schedule and any saved draft are unchanged. Try again, or adjust the staffing requirements.');render();return;}
+      S.draft={unc:1,published:false,confirm:false};S.sel={s:'N',d:3};flash('ok','Draft generated for 2–8 Nov. 1 position could not be covered.');render();return;
     case 'cell': S.sel={s:ds.s,d:+ds.d};S.flash=null;render();return;
     case 'savedraft': flash('ok','Draft saved. The official schedule is unchanged.');render();return;
     case 'publish':
       if(S.draft.unc>0){S.draft.confirm=true;S.flash=null;render();var b=app.querySelector('[data-fk="pub-yes"]');if(b)b.focus();announce('Confirm publishing with an uncovered position.');}
-      else{S.draft.published=true;flash('ok','Schedule published as version 1. Employees can now see it.');render();}
+      else{S.draft.published=true;publishOT();flash('ok','Schedule published as version 1. Employees can now see it.');render();}
       return;
-    case 'publish-yes': S.draft.published=true;S.draft.confirm=false;flash('ok','Schedule published as version 1 with '+S.draft.unc+' uncovered position. Your confirmation was recorded.');render();return;
+    case 'publish-yes': S.draft.published=true;publishOT();S.draft.confirm=false;flash('ok','Schedule published as version 1 with '+S.draft.unc+' uncovered position. Your confirmation was recorded.');render();return;
     case 'publish-no': S.draft.confirm=false;S.flash=null;render();return;
     case 'pendonly': S.pendingOnly=el.checked;render();announce(S.pendingOnly?'Showing pending acknowledgements only.':'Showing all employees.');return;
     case 'noshow': S.noShowOpen=!S.noShowOpen;render();if(S.noShowOpen){var f=document.getElementById('ns-emp');if(f)f.focus();}return;
     case 'pick': S.selItem=+ds.id;S.flash=null;render();return;
     case 'send':
       var it=S.items.filter(function(x){return x.id===+ds.id;})[0];
-      it.offer={to:ds.to,st:'pending',at:nowStr()};flash('ok','Offer sent to '+ds.to+'. It stays Pending until they respond.');render();return;
+      it.offer={to:ds.to,st:'pending',at:nowStr(),ot:isOT(ds.to,it)};flash('ok','Offer sent to '+ds.to+'. It stays Pending until they respond.');render();return;
+    case 'otopen': S.otConsent=+ds.o;S.otErr='';render();var oc=document.getElementById('otcons');if(oc)oc.focus();return;
+    case 'otclose': S.otConsent=0;S.otErr='';render();return;
+    case 'otwd': var ow=S.ot.filter(function(x){return x.id===+ds.o;})[0];ow.su=ow.su.filter(function(x){return x.n!=='Nguyen Van An';});flash('ok','You withdrew from overtime on '+otDay(ow.d)+'. Your availability is unchanged.');render();return;
+    case 'otdec': var od=S.ot.filter(function(x){return x.id===+ds.o;})[0];od.su.forEach(function(x){if(x.n===ds.n)x.st=ds.r;});flash('ok',ds.n+(ds.r==='approved'?' approved for overtime on '+otDay(od.d)+'. It will be published with the schedule.':' not approved for overtime on '+otDay(od.d)+'.'));render();return;
+    case 'otcloseposting': var oq=S.ot.filter(function(x){return x.id===+ds.o;})[0];oq.closed=true;flash('ok','Overtime posting for '+otDay(oq.d)+' closed.');render();return;
+    case 'accnew': S.accMode='new';S.accVals=null;S.accErr=null;S.flash=null;render();var f1=document.getElementById('an-name');if(f1)f1.focus();return;
+    case 'accedit': S.accMode='edit';S.accEdit=ds.e;S.accVals=null;S.accErr=null;S.flash=null;render();var f2=document.getElementById('an-name');if(f2)f2.focus();return;
+    case 'acccancel': S.accMode='list';S.accVals=null;S.accErr=null;render();return;
+    case 'accask': var aa=S.acc.filter(function(x){return x.email===ds.e;})[0];S.accConfirm={n:aa.n,e:aa.email,to:ds.to};S.flash=null;render();var cy=app.querySelector('[data-fk="ac-yes"]');if(cy)cy.focus();return;
+    case 'accno': S.accConfirm=null;render();return;
+    case 'accyes': var ab=S.acc.filter(function(x){return x.email===S.accConfirm.e;})[0];ab.active=(S.accConfirm.to==='active');
+      flash('ok',ab.n+(ab.active?' was activated and can log in again.':' was deactivated and can no longer log in. Published assignments are unchanged.'));S.accConfirm=null;render();return;
+    case 'avreset': S.avWork=copyObj(AVBASE);flash('info','Reset to your baseline pattern. It is not saved until you select Save availability.');render();return;
+    case 'closed': S.closed[ds.s]=el.checked;
+      var cw=S.stWork||copyObj(S.stTarget==='default'?S.staffDef:S.staffWeek);
+      var sv=S.stTarget==='default'?S.staffDef:S.staffWeek;
+      for(var pi2=0;pi2<2;pi2++)for(var dd=0;dd<7;dd++){var kk=ds.s+'|'+pi2+'|'+dd;cw[kk]=el.checked?0:sv[kk];}
+      S.stWork=cw;render();return;
+    case 'critical': S.crit[ds.s]=el.checked;render();return;
+    case 'copyprev': S.stWork=copyObj(S.staffPrev);S.stErr=null;S.stStale=false;flash('info','Values copied from the previous week. They are not saved until you select Save.');render();return;
+    case 'strdefault': S.stWork=copyObj(stDef());S.stErr=null;S.stStale=false;flash('info','Reset to the default values. They are not saved until you select Save.');render();return;
+    case 'stcancel': if(S.stWork){S.stDiscard=true;S.flash=null;render();var dy=app.querySelector('[data-fk="dc-yes"]');if(dy)dy.focus();}else{flash('info','No unsaved changes.');render();}return;
+    case 'stdiscard': S.stWork=null;S.stErr=null;S.stDiscard=false;S.stStale=false;flash('info','Unsaved changes discarded.');render();return;
+    case 'stkeep': S.stDiscard=false;render();return;
+    case 'loadlatest': S.stWork=null;S.stErr=null;S.stStale=false;S.simStale=false;flash('ok','Latest values loaded. Review them and save again if needed.');render();return;
     case 'cancel':
       var c=S.items.filter(function(x){return x.id===+ds.id;})[0];c.offer.st='cancelled';flash('ok','Offer cancelled. You can send a new offer.');render();return;
     case 'decline':
@@ -468,7 +668,11 @@ function act(a,ds,el){
     case 'confirm':
       var k=S.items.filter(function(x){return x.id===+ds.id;})[0];applyReplacement(k);flash('ok','Replacement confirmed and published as version '+S.ver+'. '+k.offer.to+' must acknowledge the update.');render();return;
     case 'offer':
-      var o=S.items.filter(function(x){return x.id===+ds.id;})[0];o.offer.st=ds.r;
+      var o=S.items.filter(function(x){return x.id===+ds.id;})[0];
+      if(ds.r==='accepted'&&o.offer.ot){var cb=document.getElementById('otc-'+ds.id);
+        if(cb&&!cb.checked){showErr('otc-err-'+ds.id,'Explicit overtime consent is required to accept this offer.',cb);cb.focus();announce('Explicit overtime consent is required to accept this offer.');return;}
+        o.offer.consent=true;o.offer.consentAt=nowStr();}
+      o.offer.st=ds.r;
       flash(ds.r==='accepted'?'ok':'info',ds.r==='accepted'?'You accepted the offer. The Manager still has to confirm it.':'You declined the offer.');render();return;
   }
 }
@@ -478,30 +682,84 @@ function form(name,f){
   if(name==='login'){
     var em=document.getElementById('email'), pw=document.getElementById('pw'), box=document.getElementById('login-err');
     clearErr(['email-err','pw-err','login-err']);em.removeAttribute('aria-invalid');pw.removeAttribute('aria-invalid');
-    if(S.failed>=5){box.textContent='Too many failed attempts. Try again in 15 minutes.';box.hidden=false;return;}
     var v=em.value.trim();
     if(!v||!/^\S+@\S+\.\S+$/.test(v)){showErr('email-err',v?'Enter a valid email address, for example name@factory.example.':'Enter your email address.',em);em.focus();return;}
     if(!pw.value){showErr('pw-err','Enter your password.',pw);pw.focus();return;}
     var u=USERS[v.toLowerCase()];
     if(!u||pw.value!==PASSWORD){S.failed++;
-      box.textContent=S.failed>=5?'Too many failed attempts. Try again in 15 minutes.':'Invalid email or password. Please try again.';box.hidden=false;pw.value='';pw.focus();return;}
+      box.textContent='Invalid email or password. Please try again.';box.hidden=false;pw.value='';pw.focus();return;}
+    var ac0=S.acc.filter(function(a){return a.email.toLowerCase()===v.toLowerCase();})[0];
+    if(ac0&&!ac0.active){box.textContent='This account is inactive. Contact your Manager.';box.hidden=false;pw.value='';pw.focus();return;}
     S.failed=0;S.user=u;S.week=1;S.screen=HOME[u.role];S.flash=null;render(true);announce('Logged in as '+u.name+', '+u.role+'.');return;
   }
   if(name==='ack'){
     var cb=document.getElementById('reviewed');clearErr(['ack-err']);
     if(!cb.checked){showErr('ack-err','Confirm that you have reviewed the changes before you acknowledge.',null);cb.focus();return;}
-    S.anAck='ack';S.anAckAt='28 Oct 16:30';var r=S.team.filter(function(t){return t.n==='Nguyen Van An';})[0];r.ack='28 Oct 16:30';
+    S.anAck='ack';S.anAckAt='28 Oct 16:30';S.anNote='';S.lastAck='version '+S.ver+' · 28 Oct 2026, 16:30';var r=S.team.filter(function(t){return t.n==='Nguyen Van An';})[0];r.ack='28 Oct 16:30';
     S.screen='schedule';flash('ok','Acknowledged. The Manager can see that you have seen version '+S.ver+'.');render(true);return;
   }
   if(name==='report'){
-    var sel=document.getElementById('shift');clearErr(['shift-err']);sel.removeAttribute('aria-invalid');
-    if(!sel.value){showErr('shift-err','Select the shift you cannot attend.',sel);sel.focus();return;}
-    var di=+sel.value, row0=S.an[di];
-    var dup=S.items.some(function(x){return x.name==='Nguyen Van An'&&x.d===di&&!x.resolved;});
-    if(dup){showErr('shift-err','You already reported this shift. The Manager is arranging coverage.',sel);sel.focus();return;}
-    S.items.push({id:S.nextId++,name:'Nguyen Van An',d:di,c:row0.c,pos:row0.pos,kind:'Absence reported '+nowStr(),reason:document.getElementById('reason').value,resolved:false,offer:null});
-    S.reports.unshift({shift:dayLabel(di)+' ┬╖ '+lab(row0.c),at:nowStr(),st:'Coverage in progress'});
-    flash('ok','Absence reported for '+dayLabel(di)+'. Your Manager can now arrange a replacement. Your shift stays assigned until then.');render();return;
+    var sel=document.getElementById('shift'), ex=document.getElementById('expl'), er={};
+    if(!sel.value) er.shift='Select the shift you cannot attend.';
+    var len=ex.value.trim().length;
+    if(len<10||len>500) er.expl='Enter an explanation of 10 to 500 characters (now '+len+').';
+    var di=+sel.value;
+    if(sel.value&&S.items.some(function(x){return x.name==='Nguyen Van An'&&x.d===di&&!x.resolved;})) er.shift='You already reported this shift. The Manager is arranging coverage.';
+    if(er.shift||er.expl){S.repErr=er;S.flash=null;var keepVal=ex.value, keepSh=sel.value, keepRe=document.getElementById('reason').value;render();document.getElementById('expl').value=keepVal;document.getElementById('shift').value=keepSh;document.getElementById('reason').value=keepRe;document.getElementById('expl-cnt').textContent=keepVal.length+' / 500';(document.getElementById(er.shift?'shift':'expl')).focus();announce('The form has errors. '+(er.shift||'')+' '+(er.expl||''));return;}
+    S.repErr=null;
+    var row0=S.an[di];
+    S.items.push({id:S.nextId++,name:'Nguyen Van An',d:di,c:row0.c,pos:row0.pos,kind:'Absence reported '+nowStr(),reason:document.getElementById('reason').value,expl:ex.value.trim(),resolved:false,offer:null});
+    S.reports.unshift({shift:dayLabel(di)+' · '+lab(row0.c),at:nowStr(),st:'Coverage in progress'});
+    flash('ok','Absence reported for '+dayLabel(di)+'. Your Manager can now arrange a replacement.');render();return;
+  }
+  if(name==='otsignup'){
+    var cb2=document.getElementById('otcons');clearErr(['otcons-err']);
+    if(!cb2.checked){S.otErr='Confirm your consent to the overtime terms before you sign up.';showErr('otcons-err',S.otErr,cb2);cb2.focus();return;}
+    var oo=S.ot.filter(function(x){return x.id===+f.dataset.o;})[0];
+    oo.su.push({n:'Nguyen Van An',st:'pending',elig:'Eligible',consentAt:nowStr()});
+    S.otConsent=0;S.otErr='';flash('ok','You signed up for overtime on '+otDay(oo.d)+'. Your consent was recorded; the Manager must still approve it.');render();return;
+  }
+  if(name==='account'){
+    var ed2=S.accMode==='edit', nm=document.getElementById('an-name').value.trim(), ps=document.getElementById('an-pos').value, em2=ed2?'':document.getElementById('an-email').value.trim(), er2={};
+    if(nm.length<2) er2.n='Enter the full name.';
+    if(!ed2){if(!/^\S+@\S+\.\S+$/.test(em2)) er2.email=em2?'Enter a valid email address, for example name@factory.example.':'Enter the work email.';
+      else if(S.acc.some(function(a){return a.email.toLowerCase()===em2.toLowerCase();})) er2.email='An account with this email already exists.';}
+    if(!ps) er2.pos='Select a position.';
+    if(er2.n||er2.email||er2.pos){S.accErr=er2;S.accVals={n:nm,email:em2,pos:ps};render();var bad=app.querySelector('[aria-invalid="true"]');if(bad)bad.focus();announce('The form has errors.');return;}
+    if(ed2){var ae=S.acc.filter(function(a){return a.email===S.accEdit;})[0];ae.n=nm;ae.pos=ps;flash('ok','Changes saved for '+nm+'.');}
+    else{S.acc.push({n:nm,email:em2,pos:ps,active:true});NIGHTS[nm]=0;S.team.push({n:nm,codes:'-------',ack:'notreq'});flash('ok','Account created for '+nm+' (Active).');}
+    S.accMode='list';S.accVals=null;S.accErr=null;render();return;
+  }
+  if(name==='otpost'){
+    var dd2=+document.getElementById('ot-day').value, fr=document.getElementById('ot-from').value, to=document.getElementById('ot-to').value;
+    var lc=document.getElementById('ot-loc').value.trim(), du=document.getElementById('ot-duties').value.trim(), nt=document.getElementById('ot-note').value.trim(), ms=[], er3={};
+    if(hm(to)<=hm(fr)) ms.push('The end time must be after the start time.');
+    if(!lc){ms.push('Enter the location.');er3.loc=1;}
+    if(!du){ms.push('Enter the duties.');er3.duties=1;}
+    if(ms.length){S.otPostErr={msgs:ms,loc:er3.loc,duties:er3.duties};S.flash=null;render();document.getElementById('ot-loc').value=lc;document.getElementById('ot-duties').value=du;document.getElementById('ot-note').value=nt;document.getElementById('ot-day').value=dd2;document.getElementById('ot-from').value=fr;document.getElementById('ot-to').value=to;announce('Not posted. '+ms.length+' problems.');return;}
+    S.otPostErr=null;var no={id:S.otNext++,d:dd2,from:fr,to:to,loc:lc,duties:du,note:nt||'Compensation follows company overtime policy.',closed:false,published:false,su:[]};S.ot.push(no);
+    flash('ok','Overtime shift posted for '+otDay(dd2)+', '+otIv(no)+'. Employees can now sign up.');render();return;
+  }
+  if(name==='availability'){
+    var w2=S.avWork||S.avSaved, allU2=Object.keys(w2).every(function(k){return w2[k]==='U';});
+    S.avSaved=copyObj(w2);S.avWork=null;
+    if(allU2) flash('warn','Saved. Every shift is marked Unavailable, so the Manager cannot schedule you for 2–8 Nov.');
+    else flash('ok','Availability for 2–8 Nov saved. You can change it until Thu 29 Oct 2026, 18:00.');
+    render();return;
+  }
+  if(name==='staffing'){
+    var saved=S.stTarget==='default'?S.staffDef:S.staffWeek, w3=S.stWork||saved, msgs=[], keys={};
+    ['M','A','N'].forEach(function(c){for(var d=0;d<7;d++){var sum=0;
+      for(var p=0;p<2;p++){var k=c+'|'+p+'|'+d, v=w3[k];
+        if(typeof v!=='number'||isNaN(v)||v<0||v!==Math.floor(v)){keys[k]=1;msgs.push(SH[c].n+', '+POS[p]+', '+DAYS[d]+': enter a whole number of 0 or more.');v=0;}
+        sum+=v;}
+      if(sum>50){keys[c+'|0|'+d]=1;keys[c+'|1|'+d]=1;msgs.push(SH[c].n+', '+DAYS[d]+': the total is '+sum+'; it must be between 0 and 50.');}}});
+    if(msgs.length){S.stErr={keys:keys,msgs:msgs};S.stStale=false;S.flash=null;render();var fi=app.querySelector('[aria-invalid="true"]');if(fi)fi.focus();announce('Not saved. '+msgs.length+' problems.');return;}
+    S.stErr=null;
+    if(S.simStale){S.stStale=true;S.flash=null;render();var ll=app.querySelector('[data-fk="load-latest"]');if(ll)ll.focus();announce('Not saved. Another change was saved first.');return;}
+    if(S.stTarget==='default')S.staffDef=copyObj(w3);else S.staffWeek=copyObj(w3);
+    S.stWork=null;S.stStale=false;
+    flash('ok','Staffing requirements saved'+(S.stTarget==='default'?' as the default template.':' for the week of 2 Nov.')+' Drafts generated from now on use them; published schedules are unchanged.');render();return;
   }
   if(name==='assign'){S.draft.unc=0;flash('ok','Position filled. The draft now has no uncovered positions.');render();return;}
   if(name==='noshow'){
@@ -515,6 +773,29 @@ document.addEventListener('click',function(e){
   if(b.tagName==='INPUT'){act(b.dataset.act,b.dataset,b);return;}
   if(b.getAttribute('aria-disabled')==='true'&&b.dataset.act!=='noop')return;
   act(b.dataset.act,b.dataset,b);
+});
+document.addEventListener('input',function(e){
+  var t=e.target;if(!t||!t.dataset)return;
+  if(t.dataset.sk!==undefined){
+    var base=S.stTarget==='default'?S.staffDef:S.staffWeek;
+    if(!S.stWork)S.stWork=copyObj(base);
+    S.stWork[t.dataset.sk]=(t.value===''?NaN:Number(t.value));
+    var pr=t.dataset.sk.split('|'), a=S.stWork[pr[0]+'|0|'+pr[2]], b=S.stWork[pr[0]+'|1|'+pr[2]];
+    var cell=app.querySelector('[data-tot="'+pr[0]+'|'+pr[2]+'"]');if(cell)cell.innerHTML='<strong>'+((isNaN(a)||isNaN(b))?'?':a+b)+'</strong>';
+  }
+  if(t.id==='expl'){var cn=document.getElementById('expl-cnt');if(cn)cn.textContent=t.value.length+' / 500';}
+});
+document.addEventListener('change',function(e){
+  var t=e.target;if(!t||!t.dataset)return;
+  if(t.dataset.chg==='avweek'){S.avLocked=(t.value==='locked');S.avWork=null;S.flash=null;render();announce(S.avLocked?'Showing the locked week, read-only.':'Showing the open week.');return;}
+  if(t.dataset.chg==='sttgt'){S.stTarget=t.value;S.stWork=null;S.stErr=null;S.stStale=false;S.flash=null;render();announce('Editing '+(t.value==='default'?'the default template.':'the target week 2 to 8 November.'));return;}
+  if(t.dataset.av!==undefined){
+    var before=Object.keys(S.avWork||S.avSaved).every(function(k){return (S.avWork||S.avSaved)[k]==='U';});
+    if(!S.avWork)S.avWork=copyObj(S.avSaved);
+    S.avWork[t.dataset.av]=t.value;
+    var after=Object.keys(S.avWork).every(function(k){return S.avWork[k]==='U';});
+    if(before!==after){render();var again=app.querySelector('[data-fk="av-'+t.dataset.av+'"]');if(again)again.focus();}
+  }
 });
 document.addEventListener('submit',function(e){var f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();form(f.dataset.form,f);});
 document.getElementById('skip').addEventListener('click',function(e){e.preventDefault();var m=document.getElementById('main'),h=m&&m.querySelector('h1');(h||m).setAttribute('tabindex','-1');(h||m).focus();});
