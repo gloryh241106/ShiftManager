@@ -123,8 +123,8 @@ var USERS={
   'quan.tran@factory.example':{name:'Tran Minh Quan',role:'Manager'},
   'bao.ly@factory.example':{name:'Ly Quoc Bao',role:'Boss'}};
 var PASSWORD='demo1234';
-var NAV={Employee:[['schedule','My Schedule'],['report','Report Absence']],
-         Manager:[['scheduling','Weekly Scheduling'],['team','Team Schedule'],['coverage','Absence & Coverage']],
+var NAV={Employee:[['schedule','My Schedule'],['report','Report Absence'],['availability','Availability & Overtime']],
+         Manager:[['scheduling','Weekly Scheduling'],['team','Team Schedule'],['coverage','Absence & Coverage'],['accounts','Employee Accounts'],['staffing','Staffing & Overtime']],
          Boss:[['overview','Staffing Overview']]};
 var HOME={Employee:'schedule',Manager:'scheduling',Boss:'overview'};
 var WEEKS=['19 Oct – 25 Oct 2026','26 Oct – 1 Nov 2026','2 Nov – 8 Nov 2026'];
@@ -151,12 +151,14 @@ var S={
     {n:'Dinh Van Minh',codes:'NN-NNN-',ack:'25 Oct 17:31'}],
   pendingOnly:false,
   items:[
-    {id:1,name:'Le Van Cuong',d:3,c:'M',pos:'Machine Operator',kind:'Absence reported 28 Oct 07:40',reason:'Illness',resolved:false,offer:{to:'Nguyen Van An',st:'pending',at:'28 Oct 08:05'}},
+    {id:1,name:'Le Van Cuong',d:3,c:'M',pos:'Machine Operator',kind:'Absence reported 28 Oct 07:40',reason:'Illness',resolved:false,remaining:'10:00–14:00',prior:'06:00–10:00',offer:{to:'Nguyen Van An',st:'pending',at:'28 Oct 08:05'}},
     {id:2,name:'Pham Thi Dung',d:2,c:'A',pos:'Packer',kind:'No-show recorded 28 Oct 14:20',reason:'',resolved:false,offer:null},
     {id:3,name:'Vo Thi Phuong',d:1,c:'M',pos:'Packer',kind:'Absence reported 26 Oct 20:05',reason:'Family matter',resolved:true,offer:{to:'Do Van Hieu',st:'accepted',at:'26 Oct 21:10'}}],
   nextId:4, selItem:1, noShowOpen:false,
   reports:[{shift:'Tue 20 Oct · Afternoon 14:00–22:00',at:'19 Oct 20:10',st:'Resolved – covered'}],
-  draft:null, sel:{s:'N',d:3}
+  draft:null, sel:{s:'N',d:3},
+  accounts:[{id:1,name:'Demo Employee',email:'demo@factory.example',active:true}],
+  accountId:2, availability:'Available', staffing:3, overtime:null
 };
 var BASE_UNCOVERED=[{d:3,c:'N',pos:'QC Inspector'}];
 
@@ -225,6 +227,48 @@ function weekBar(label,idKey){
 
 /* ---------------------------------------------------------------- screens */
 var SCREENS={};
+SCREENS.accounts=function(){
+  return '<h1>Employee Account Management</h1><div class="card"><h2>Team Employee accounts</h2><p class="muted">Demo account records for this team.</p>'+
+    S.accounts.map(function(a){
+      return '<p><strong>'+esc(a.name)+'</strong> · '+esc(a.email)+' · '+(a.active?'Active':'Inactive')+
+        ' <button class="btn s" data-act="edit-account" data-id="'+a.id+'">Edit</button> <button class="btn s" data-act="account-status" data-id="'+a.id+'">'+(a.active?'Deactivate':'Activate')+'</button></p>';
+    }).join('')+
+    '<form data-form="account"><h2>'+(S.editAccount?'Edit account':'Create Employee account')+'</h2>'+
+    '<div class="fld"><label for="acct-name">Name</label><input id="acct-name" name="name" required value="'+esc(S.editAccount?S.editAccount.name:'')+'"></div>'+
+    '<div class="fld"><label for="acct-email">Email</label><input type="email" id="acct-email" name="email" required value="'+esc(S.editAccount?S.editAccount.email:'')+'"></div>'+
+    '<button class="btn p">Save account</button></form></div>';
+};
+
+SCREENS.availability=function(){
+  var o=S.overtime;
+  return '<h1>Availability and Overtime Sign-up</h1><div class="cols"><div class="card"><h2>Availability for the target week</h2>'+
+    '<form data-form="availability"><label for="avail">Tuesday 06:00–14:00</label><select id="avail" name="choice">'+
+    ['Available','Unavailable','Prefer Not'].map(function(v){return '<option'+(v===S.availability?' selected':'')+'>'+v+'</option>';}).join('')+
+    '</select><p><button class="btn p">Save availability</button></p></form></div>'+
+    '<div class="card"><h2>Voluntary overtime</h2>'+(!o?'<p>No overtime offer has been posted.</p>':
+    '<p>'+esc(o.date)+' · '+esc(o.interval)+' · '+esc(o.location)+'</p><p>'+esc(o.duties)+'</p><p>Informational note: '+esc(o.note||'—')+'</p>'+
+    '<p><strong>Status:</strong> '+esc(o.status)+'</p>'+
+    (o.status==='Open'||o.status==='Withdrawn'?'<form data-form="overtime-signup"><label class="chk"><input type="checkbox" required name="consent">I agree to the specific interval, location and duties above.</label><p><button class="btn p">Sign up</button></p></form>':
+    o.status==='Pending approval'||o.status==='Approved'?'<button class="btn" data-act="overtime-withdraw">Withdraw</button>':''))+'</div></div>';
+};
+
+SCREENS.staffing=function(){
+  var o=S.overtime;
+  return '<h1>Staffing Configuration and Overtime Posting</h1><div class="cols">'+
+    '<div class="card"><h2>Morning staffing target</h2><form data-form="staffing"><label for="staff-count">Packaging Operators</label>'+
+    '<input id="staff-count" name="count" type="number" min="0" max="50" step="1" required value="'+S.staffing+'"><p><button class="btn p">Save staffing</button></p></form>'+
+    (o?'<h2>Voluntary sign-up</h2><p>'+esc(o.date)+' · '+esc(o.interval)+' · '+esc(o.status)+'</p>'+
+    (o.status==='Pending approval'?'<div class="row"><button class="btn p" data-act="overtime-approve">Approve</button><button class="btn" data-act="overtime-reject">Reject</button></div>':
+    o.status==='Approved'?'<button class="btn p" data-act="overtime-assign">Validate and assign</button>':''):'')+'</div>'+
+    '<div class="card"><h2>Post an overtime offer</h2><form data-form="overtime-post">'+
+    '<div class="fld"><label for="ot-date">Shift date or holiday</label><input id="ot-date" name="date" required value="Tết demo shift"></div>'+
+    '<div class="fld"><label for="ot-interval">Interval</label><input id="ot-interval" name="interval" required value="06:00–14:00"></div>'+
+    '<div class="fld"><label for="ot-location">Location</label><input id="ot-location" name="location" required value="Packaging line"></div>'+
+    '<div class="fld"><label for="ot-duties">Duties</label><input id="ot-duties" name="duties" required value="Packaging Operator"></div>'+
+    '<div class="fld"><label for="ot-note">Informational compensation note</label><input id="ot-note" name="note" value="300% (example)"></div>'+
+    '<label class="chk"><input type="checkbox" name="records">Demo work-hour and eligibility records verified</label><p><button class="btn p">Post offer</button></p></form></div></div>';
+};
+
 
 SCREENS.login=function(){
   return '<div class="login"><h1>Log in to ShiftManager</h1>'+
@@ -272,7 +316,7 @@ SCREENS.schedule=function(){
     if(r.c==='-') return '<tr><td>'+dl+'</td><td class="muted">Day off</td><td>—</td><td>—</td><td>—</td></tr>';
     var cancelled=r.ch==='can', wrap=function(t){return cancelled?'<s>'+t+'</s>':t;};
     var chg=r.ch?chBadge(r.ch)+' <button type="button" class="btn s" data-act="toggle" data-i="'+i+'" data-fk="det-'+i+'" aria-expanded="'+(!!S.open[i])+'" aria-label="Details for '+dl+'">Details</button>':'—';
-    var out='<tr><td>'+dl+'</td><td>'+wrap(SH[r.c].n)+'</td><td>'+wrap(SH[r.c].t)+'</td><td>'+wrap(r.pos)+'</td><td>'+chg+'</td></tr>';
+    var out='<tr><td>'+dl+'</td><td>'+wrap(SH[r.c].n)+'</td><td>'+wrap(r.interval||SH[r.c].t)+'</td><td>'+wrap(r.pos)+'</td><td>'+chg+'</td></tr>';
     if(S.open[i]) out+='<tr><td colspan="5" style="background:var(--surface2)"><strong>Previous:</strong> '+(r.prev||'—')+' &nbsp;→&nbsp; <strong>Current:</strong> '+(cancelled?'Removed':lab(r.c)+', '+r.pos)+'</td></tr>';
     return out;}).join('');
   h+='<div class="card flush scroll" role="region" aria-label="Schedule table" tabindex="0"><table><caption class="sr">Assigned shifts, week of 26 October</caption><thead><tr><th scope="col">Date</th><th scope="col">Shift</th><th scope="col">Time</th><th scope="col">Position</th><th scope="col">Change</th></tr></thead><tbody>'+trs+'</tbody></table></div>';
@@ -303,7 +347,7 @@ SCREENS.report=function(){
   var opts='<option value="">Select a shift</option>'+shifts.map(function(s){return '<option value="'+s.i+'">'+s.t+'</option>';}).join('');
   var offers=S.items.filter(function(it){return it.offer&&it.offer.to==='Nguyen Van An'&&!(it.resolved&&it.offer.st!=='accepted');});
   var oh=offers.length?offers.map(function(it){
-    var o=it.offer, d=dayLabel(it.d)+' · '+lab(it.c);
+    var o=it.offer, d=dayLabel(it.d)+' · '+(it.remaining||lab(it.c));
     var body='<strong>'+d+'</strong><br><span class="sm">'+it.pos+' · covering an absent colleague</span><br><span class="sm muted">Offered '+o.at+' by Tran Minh Quan</span> ';
     if(o.st==='pending') body+=bd('pen','Pending')+'<div class="row" style="margin-top:8px"><button type="button" class="btn p s" data-act="offer" data-id="'+it.id+'" data-r="accepted" data-fk="acc-'+it.id+'">Accept</button><button type="button" class="btn s" data-act="offer" data-id="'+it.id+'" data-r="rejected" data-fk="dec-'+it.id+'">Decline</button></div>';
     else if(o.st==='accepted'&&!it.resolved) body+=bd('chg','Accepted')+'<p class="sm muted" style="margin:6px 0 0">Waiting for the Manager to confirm. Your schedule changes only after confirmation.</p>';
@@ -381,7 +425,7 @@ SCREENS.coverage=function(){
   var it=current(), det='';
   if(it){
     var st=status(it);
-    det+='<div class="card"><h2>Coverage for '+dayLabel(it.d)+' · '+lab(it.c)+' · '+it.pos+'</h2><p class="sm muted" style="margin:0">Absent: '+it.name+(it.reason?' · Reason: '+it.reason:'')+' · '+(it.resolved?'Coverage confirmed.':'The shortage stays visible until a valid replacement is confirmed.')+'</p></div>';
+    det+='<div class="card"><h2>Coverage for '+dayLabel(it.d)+' · '+lab(it.c)+' · '+it.pos+'</h2><p class="sm muted" style="margin:0">Absent: '+it.name+(it.reason?' · Reason: '+it.reason:'')+' · '+(it.resolved?'Coverage confirmed.'+(it.remaining?' Effective interval: '+it.remaining+'. Earlier interval retained: '+it.prior+'.':''):'The shortage stays visible until a valid replacement is confirmed.')+'</p></div>';
     var active=it.offer&&(it.offer.st==='pending'||it.offer.st==='accepted');
     var cands=S.team.filter(function(t){return t.n!==it.name&&['Nguyen Van An','Vo Thi Phuong','Do Van Hieu'].indexOf(t.n)>-1;});
     var crow=cands.map(function(t){
@@ -432,11 +476,34 @@ function applyReplacement(it){
   if(cand==='Nguyen Van An'){S.an[it.d]=row(it.c,'new','Not assigned',it.pos);S.anAck='pending';S.anAckAt='';}
   if(it.name==='Nguyen Van An'){S.an[it.d]=row(it.c,'can',lab(it.c),it.pos);S.anAck='pending';S.anAckAt='';}
   S.team.forEach(function(t){if(t.n===cand&&cand!=='Nguyen Van An')t.ack='pending';});
+  if(it.remaining&&cand==='Nguyen Van An') S.an[it.d].interval=it.remaining;
   it.resolved=true;
 }
 function act(a,ds,el){
   switch(a){
     case 'go': go(ds.to);return;
+    case 'edit-account':
+    case 'account-status':
+      if(S.user.role!=='Manager') return;
+      var account=S.accounts.find(function(a){return a.id===+ds.id;});
+      if(!account) return;
+      if(a==='edit-account') S.editAccount=account;
+      else if(window.confirm((account.active?'Deactivate ':'Activate ')+account.name+'?')) account.active=!account.active;
+      render();return;
+    case 'overtime-withdraw':
+      if(S.user.role==='Employee'&&S.overtime&&['Pending approval','Approved'].includes(S.overtime.status)) {
+        S.overtime.status='Withdrawn';flash('info','Overtime sign-up withdrawn.');render();
+      }return;
+    case 'overtime-approve':
+    case 'overtime-reject':
+      if(S.user.role==='Manager'&&S.overtime&&S.overtime.status==='Pending approval') {
+        S.overtime.status=a==='overtime-approve'?'Approved':'Rejected';render();
+      }return;
+    case 'overtime-assign':
+      if(S.user.role!=='Manager'||!S.overtime||S.overtime.status!=='Approved') return;
+      if(!S.overtime.records) flash('info','Assignment blocked. Demo eligibility records are missing.');
+      else {S.overtime.status='Assigned';flash('ok','Demo overtime assignment recorded.');}
+      render();return;
     case 'logout': S={}.constructor.assign(S,{user:null,screen:'login',flash:null,week:1,open:{}});render(true);announce('Logged out.');return;
     case 'fill': document.getElementById('email').value=ds.u;document.getElementById('pw').value=PASSWORD;document.getElementById('pw').focus();return;
     case 'week':
@@ -486,6 +553,31 @@ function form(name,f){
     if(!u||pw.value!==PASSWORD){S.failed++;
       box.textContent=S.failed>=5?'Too many failed attempts. Try again in 15 minutes.':'Invalid email or password. Please try again.';box.hidden=false;pw.value='';pw.focus();return;}
     S.failed=0;S.user=u;S.week=1;S.screen=HOME[u.role];S.flash=null;render(true);announce('Logged in as '+u.name+', '+u.role+'.');return;
+  }
+  if(name==='account'&&S.user.role==='Manager'){
+    var ac=new FormData(f),email=ac.get('email').trim().toLowerCase(), nameValue=ac.get('name').trim();
+    if(!nameValue||S.accounts.some(function(a){return a!==S.editAccount&&a.email===email;})){
+      flash('info','Enter a name and a unique email address.');render();return;
+    }
+    if(S.editAccount){S.editAccount.name=nameValue;S.editAccount.email=email;}
+    else S.accounts.push({id:S.accountId++,name:nameValue,email:email,active:true});
+    S.editAccount=null;flash('ok','Employee account saved.');render();return;
+  }
+  if(name==='availability'&&S.user.role==='Employee'){
+    S.availability=new FormData(f).get('choice');flash('ok','Availability saved.');render();return;
+  }
+  if(name==='staffing'&&S.user.role==='Manager'){
+    S.staffing=Number(new FormData(f).get('count'));flash('ok','Staffing configuration saved.');render();return;
+  }
+  if(name==='overtime-post'&&S.user.role==='Manager'){
+    if(S.overtime&&S.overtime.status==='Assigned'){flash('info','The demo offer is already assigned.');render();return;}
+    var data=Object.fromEntries(new FormData(f));
+    S.overtime={date:data.date,interval:data.interval,location:data.location,duties:data.duties,note:data.note,records:!!data.records,status:'Open'};
+    flash('ok','Overtime offer posted. New or changed terms require a fresh sign-up.');render();return;
+  }
+  if(name==='overtime-signup'&&S.user.role==='Employee'&&S.overtime&&['Open','Withdrawn'].includes(S.overtime.status)){
+    if(!new FormData(f).has('consent')) return;
+    S.overtime.status='Pending approval';flash('ok','Sign-up recorded. Manager approval is pending.');render();return;
   }
   if(name==='ack'){
     var cb=document.getElementById('reviewed');clearErr(['ack-err']);
